@@ -21,8 +21,9 @@ export async function POST(req: NextRequest) {
       subscription_data: {
         trial_period_days: 60, // ✅ Adds your 2-month (60-day) free trial
       },
-      success_url: 'https://1d3a-2a02-c7c-31f6-fb00-39e3-8306-e36b-db0f.ngrok-free.app/dashboard/browse',
-cancel_url: 'https://1d3a-2a02-c7c-31f6-fb00-39e3-8306-e36b-db0f.ngrok-free.app/subscribe?cancelled=true',
+      success_url: 'https://knotreels.com/dashboard/browse',
+cancel_url: 'https://knotreels.com/subscribe?cancelled=true',
+
 
     });
 

@@ -4,13 +4,13 @@ import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDm2bzhaFDYzL9p8dVaRtaYOBz-PWHzmsw",
-  authDomain: "knotreels-7e724.firebaseapp.com",
-  projectId: "knotreels-7e724",
-  storageBucket: "knotreels-7e724.firebasestorage.app", // ✅ FIXED
-  messagingSenderId: "256684418810",
-  appId: "1:256684418810:web:6f205c92148349caea4b43",
-  measurementId: "G-F8GM0KB6KM"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN!,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID!,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET!,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID!,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID!,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID!,
 };
 
 const app = initializeApp(firebaseConfig);

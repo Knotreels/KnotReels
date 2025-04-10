@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -23,23 +23,36 @@ export default function UploadContentPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+
   const {
     register,
     handleSubmit,
     formState: { errors },
-    setValue,
-    watch,
   } = useForm({
     resolver: zodResolver(schema),
   });
+
+  // 🔒 Redirect if not signed in
+  useEffect(() => {
+    if (!auth.currentUser) {
+      alert('❌ You must be signed in to upload!');
+      router.push('/login'); // ✅ or change to your sign-in route
+    }
+  }, []);
 
   const onSubmit = async (data: any) => {
     setLoading(true);
 
     try {
+      if (!auth.currentUser) {
+        alert('You must be signed in to upload.');
+        setLoading(false);
+        return;
+      }
+
       let finalMediaUrl = data.mediaUrl;
 
-      // If file is selected, upload it to Firebase Storage
+      // Upload file to Firebase if one is selected
       if (file) {
         const fileRef = ref(storage, `uploads/${uuidv4()}-${file.name}`);
         await uploadBytes(fileRef, file);
@@ -56,14 +69,14 @@ export default function UploadContentPage() {
         title: data.title,
         mediaUrl: finalMediaUrl,
         category: data.category,
-        uid: auth.currentUser?.uid ?? "unknown",
+        uid: auth.currentUser.uid,
         createdAt: serverTimestamp(),
       });
 
       alert('✅ Content uploaded successfully!');
       router.push('/dashboard/profiles');
     } catch (err: any) {
-      alert(err.message);
+      alert(`Upload failed: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -84,16 +97,11 @@ export default function UploadContentPage() {
         {/* Media URL */}
         <div>
           <label className="block mb-1 text-sm">Media URL (optional)</label>
-          <Input
-            placeholder="Paste a video/image URL"
-            {...register('mediaUrl')}
-          />
-          <p className="text-xs text-gray-400 mt-1">
-            e.g. From Runway, MidJourney, Imgur, etc.
-          </p>
+          <Input placeholder="Paste a video/image URL" {...register('mediaUrl')} />
+          <p className="text-xs text-gray-400 mt-1">e.g. From Runway, MidJourney, Imgur, etc.</p>
         </div>
 
-        {/* OR Upload File */}
+        {/* Upload File */}
         <div>
           <label className="block mb-1 text-sm">Or Upload a File</label>
           <input

@@ -178,7 +178,6 @@ export default function ProfilePage() {
         </div>
         <div>
           <h2 className="text-2xl font-semibold">{user.username || 'Creator'}</h2>
-          <p className="text-sm text-gray-400">{user.email}</p>
         </div>
       </div>
 

@@ -135,3 +135,12 @@ body::before {
   --muted: 240 4.8% 95.9%;
   --muted-foreground: 240 3.8% 46.1%;
 }
+/* Hide scrollbar but still allow scroll */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}

@@ -1,22 +1,47 @@
-// ProfilePage.tsx (updated)
 'use client';
-import { useEffect, useState, useRef, ChangeEvent } from 'react';
-import { auth, db, storage } from '@/firebase/config';
+
 import {
-  doc, onSnapshot, collection, query, where,
-  getDocs, orderBy, updateDoc
+  useEffect,
+  useState,
+  useRef,
+  ChangeEvent,
+} from 'react';
+import {
+  auth,
+  db,
+  storage,
+} from '@/firebase/config';
+import {
+  doc,
+  onSnapshot,
+  collection,
+  query,
+  where,
+  getDocs,
+  orderBy,
+  updateDoc,
+  addDoc,
+  Timestamp,
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import {
+  ref,
+  uploadBytes,
+  getDownloadURL,
+} from 'firebase/storage';
 import { onAuthStateChanged } from 'firebase/auth';
 import Image from 'next/image';
 import Link from 'next/link';
 import LogoLoader from '@/components/LogoLoader';
+import { FaTimes } from 'react-icons/fa';
 
 export default function ProfilePage() {
   const [user, setUser] = useState<any>(null);
   const [clips, setClips] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalViews, setTotalViews] = useState(0);
+  const [activeClipId, setActiveClipId] = useState<string | null>(null);
+  const [newComment, setNewComment] = useState('');
+  const [comments, setComments] = useState<{ [key: string]: any[] }>({});
   const prevBoostsRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -44,12 +69,30 @@ export default function ProfilePage() {
         const clipsSnap = await getDocs(clipsQuery);
         const clipData = clipsSnap.docs.map((doc) => ({
           id: doc.id,
-          ...(doc.data() as { views?: number }),
+          ...(doc.data() as any),
         }));
 
         setClips(clipData);
 
-        // ✅ Calculate total views
+        // 🔁 Sync comments per clip
+        clipData.forEach((clip) => {
+          const q = query(
+            collection(db, 'comments'),
+            where('clipId', '==', clip.id),
+            orderBy('createdAt', 'desc')
+          );
+
+          onSnapshot(q, (snapshot) => {
+            setComments((prev) => ({
+              ...prev,
+              [clip.id]: snapshot.docs.map((doc) => ({
+                id: doc.id,
+                ...doc.data(),
+              })),
+            }));
+          });
+        });
+
         const viewsSum = clipData.reduce((acc, clip) => acc + (clip.views || 0), 0);
         setTotalViews(viewsSum);
       }
@@ -96,15 +139,34 @@ export default function ProfilePage() {
     }
   };
 
+  const handleSubmitComment = async (clipId: string) => {
+    if (!newComment.trim() || !user) return;
+
+    await addDoc(collection(db, 'comments'), {
+      clipId,
+      text: newComment,
+      user: user.username || "Anon",
+      avatar: user.avatar || "/default-avatar.png",
+      createdAt: Timestamp.now(),
+    });
+
+    setNewComment('');
+  };
+
   if (loading) return <LogoLoader />;
   if (!user) return <div className="p-6 text-white">User not found.</div>;
 
   return (
     <div className="space-y-10 px-6 pt-10 text-white">
+      {/* Avatar + Info */}
       <div className="flex items-center gap-6">
         <div className="relative group w-16 h-16">
-          <input type="file" accept="image/*" onChange={handleAvatarChange}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleAvatarChange}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+          />
           <Image
             src={user.avatar || '/default-avatar.png'}
             alt="Avatar"
@@ -121,13 +183,17 @@ export default function ProfilePage() {
         </div>
       </div>
 
+      {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
         <Stat label="Boosts" value={user.boosts || 0} />
         <Stat label="Tips" value={`$${user.tips?.toFixed(2) || '0.00'}`} />
         <Stat label="Views" value={totalViews} />
       </div>
 
-      <Link href="/upload" className="inline-block bg-blue-600 hover:bg-blue-700 px-6 py-3 text-white rounded-md font-medium transition">
+      <Link
+        href="/upload"
+        className="inline-block bg-blue-600 hover:bg-blue-700 px-6 py-3 text-white rounded-md font-medium transition"
+      >
         + Upload New Reel
       </Link>
 
@@ -136,28 +202,94 @@ export default function ProfilePage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {clips.length > 0 ? (
             clips.map((clip) => (
-              <div key={clip.id} className="bg-[#1a1a1a] rounded-md overflow-hidden border border-gray-700">
+              <div
+                key={clip.id}
+                className="bg-[#1a1a1a] rounded-md overflow-hidden border border-gray-700 relative"
+              >
                 {clip.mediaUrl ? (
-                  <video src={clip.mediaUrl} className="w-full h-40 object-cover" controls />
+                  <video
+                    src={clip.mediaUrl}
+                    className="w-full h-40 object-cover"
+                    controls
+                  />
                 ) : (
                   <div className="h-40 bg-gray-800 flex items-center justify-center text-sm text-gray-400">
                     No video uploaded
                   </div>
                 )}
-                <div className="p-3 space-y-2">
-                  <h4 className="font-medium text-sm text-white">
-                    {clip.title || 'Untitled'}
-                  </h4>
-                  <p className="text-xs text-gray-400">
+
+                <div className="relative p-3 bg-gradient-to-t from-black/80 to-transparent text-white">
+                  <h4 className="text-sm font-semibold truncate">{clip.title || 'Untitled'}</h4>
+                  <p className="text-xs text-gray-300">
                     Views: {clip.views || 0} • Tips: ${clip.tips?.toFixed(2) || '0.00'}
                   </p>
-                  <button
-                    onClick={() => handleTip(clip.uid || user.uid)}
-                    className="bg-green-600 hover:bg-green-700 text-white text-xs px-4 py-1 rounded transition"
-                  >
-                    💸 Tip Creator
-                  </button>
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      onClick={() => handleTip(clip.uid || user.uid)}
+                      className="bg-green-600 hover:bg-green-700 text-white text-xs px-4 py-1 rounded transition"
+                    >
+                      💸 Tip Creator
+                    </button>
+                    <button
+                      onClick={() => setActiveClipId(clip.id)}
+                      className="text-xs bg-white/10 px-3 py-1 rounded hover:bg-white/20 transition"
+                    >
+                       Comment
+                    </button>
+                  </div>
                 </div>
+
+                {/* Comments Modal */}
+                {activeClipId === clip.id && (
+                  <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center">
+                    <div className="bg-[#121212] text-white rounded-lg w-full max-w-md p-6 relative shadow-xl">
+                      <button
+                        onClick={() => setActiveClipId(null)}
+                        className="absolute top-4 right-4 text-gray-400 hover:text-white transition"
+                      >
+                        <FaTimes />
+                      </button>
+
+                      <h2 className="text-xl font-semibold mb-4">💬 Comments</h2>
+                      <div className="space-y-3 max-h-64 overflow-y-auto mb-4 border border-zinc-800 p-2 rounded bg-zinc-900/60">
+                        {comments[clip.id]?.length > 0 ? (
+                          comments[clip.id].map((c, i) => (
+                            <div key={i} className="flex items-start gap-3 text-sm text-gray-300">
+                              <Image
+                                src={c.avatar || "/default-avatar.png"}
+                                alt="user"
+                                width={24}
+                                height={24}
+                                className="rounded-full object-cover"
+                              />
+                              <div className="bg-zinc-800 px-3 py-2 rounded-lg w-full">
+                                <p className="text-xs text-white font-semibold">{c.user || 'Anon'}</p>
+                                <p className="text-sm text-gray-300">{c.text}</p>
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-sm text-gray-500">No comments yet.</p>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Write a comment..."
+                          value={newComment}
+                          onChange={(e) => setNewComment(e.target.value)}
+                          className="flex-1 p-2 rounded bg-zinc-800 text-white outline-none border border-zinc-600"
+                        />
+                        <button
+                          onClick={() => handleSubmitComment(clip.id)}
+                          className="bg-blue-600 px-4 py-2 rounded hover:bg-blue-700 text-sm font-medium"
+                        >
+                          Send
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             ))
           ) : (

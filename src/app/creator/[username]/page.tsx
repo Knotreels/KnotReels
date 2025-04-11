@@ -9,8 +9,9 @@ import {
   where,
   getDocs,
   orderBy,
-  doc,
-  getDoc,
+  addDoc,
+  Timestamp,
+  onSnapshot,
 } from 'firebase/firestore';
 import Image from 'next/image';
 import LogoLoader from '@/components/LogoLoader';
@@ -18,7 +19,8 @@ import { Button } from '@/components/ui/button';
 import { handleBoost } from '@/lib/firestore/handleBoost';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from '@/hooks/use-toast';
-import { TipModal } from '@/components/TipModal'; // ✅ Your modal
+import { TipModal } from '@/components/TipModal';
+import { FaTimes } from 'react-icons/fa';
 
 export default function PublicProfilePage() {
   const { username } = useParams();
@@ -27,68 +29,87 @@ export default function PublicProfilePage() {
   const [loading, setLoading] = useState(true);
   const { currentUser } = useAuth();
 
+  const [activeClipId, setActiveClipId] = useState<string | null>(null);
+  const [newComment, setNewComment] = useState("");
+  const [comments, setComments] = useState<{ [key: string]: any[] }>({});
+
   useEffect(() => {
-    const fetchProfile = async () => {
+    const fetchData = async () => {
       try {
-        const userQuery = query(
-          collection(db, 'users'),
-          where('username', '==', username)
+        const userSnap = await getDocs(
+          query(collection(db, 'users'), where('username', '==', username))
         );
-        const userSnap = await getDocs(userQuery);
 
         if (!userSnap.empty) {
           const userDoc = userSnap.docs[0];
           const userData = { id: userDoc.id, ...userDoc.data() };
           setCreator(userData);
 
-          const clipsQuery = query(
-            collection(db, 'clips'),
-            where('uid', '==', userDoc.id),
-            orderBy('createdAt', 'desc')
+          const clipsSnap = await getDocs(
+            query(collection(db, 'clips'), where('uid', '==', userDoc.id), orderBy('createdAt', 'desc'))
           );
-          const clipsSnap = await getDocs(clipsQuery);
-          const clipsData = clipsSnap.docs.map((doc) => ({
+          const clipData = clipsSnap.docs.map((doc) => ({
             id: doc.id,
             ...doc.data(),
           }));
-          setClips(clipsData);
+
+          setClips(clipData);
+
+          // 🔁 Live comments per clip
+          clipData.forEach((clip) => {
+            const q = query(
+              collection(db, 'comments'),
+              where('clipId', '==', clip.id),
+              orderBy('createdAt', 'desc')
+            );
+            onSnapshot(q, (snap) => {
+              setComments((prev) => ({
+                ...prev,
+                [clip.id]: snap.docs.map((d) => ({ id: d.id, ...d.data() })),
+              }));
+            });
+          });
         }
       } catch (err) {
-        console.error('Error fetching profile:', err);
+        console.error('❌ Error loading profile:', err);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchProfile();
+    fetchData();
   }, [username]);
 
   const handleBoostClick = async () => {
-    if (!creator?.id) return toast({ title: 'Missing creator ID.' });
-    if (!currentUser?.uid) return toast({ title: 'You must be logged in to boost.' });
-
-    if (currentUser.uid === creator.id) {
-      return toast({ title: "You can't boost yourself!" });
-    }
+    if (!creator?.id || !currentUser?.uid) return;
+    if (currentUser.uid === creator.id) return toast({ title: "You can't boost yourself!" });
 
     try {
-      const prevBoosts = creator.boosts || 0;
+      const prev = creator.boosts || 0;
       const success = await handleBoost(creator.id, currentUser.uid);
-
-    if (success && prevBoosts < 10) {
-      setCreator((prev: any) => ({
-    ...prev,
-    boosts: prevBoosts + 1,
-  }));
-}
-
-    } catch (error) {
-      console.error('❌ Boost failed:', error);
-      toast({
-        title: '⚠️ Boost Failed',
-        description: 'Something went wrong while boosting. Try again.',
-      });
+      if (success) {
+        setCreator((prevState: any) => ({
+          ...prevState,
+          boosts: prev + 1,
+        }));
+      }
+    } catch (err) {
+      console.error('⚠️ Boost failed:', err);
     }
+  };
+
+  const handleSubmitComment = async (clipId: string) => {
+    if (!newComment.trim() || !currentUser?.uid) return;
+
+    await addDoc(collection(db, 'comments'), {
+      clipId,
+      text: newComment,
+      user: currentUser.displayName || 'Anon',
+      avatar: currentUser.photoURL || '/default-avatar.png',
+      createdAt: Timestamp.now(),
+    });
+
+    setNewComment('');
   };
 
   if (loading) return <LogoLoader />;
@@ -96,29 +117,14 @@ export default function PublicProfilePage() {
 
   return (
     <div className="space-y-10 px-6 pt-10 text-white">
-      {/* Creator Info */}
+      {/* Header */}
       <div className="flex items-center gap-6">
-        <Image
-          src={creator.avatar || '/default-avatar.png'}
-          alt="Avatar"
-          width={64}
-          height={64}
-          className="rounded-full object-cover border border-gray-700"
-        />
+        <Image src={creator.avatar || '/default-avatar.png'} alt="Avatar" width={64} height={64} className="rounded-full object-cover border border-gray-700" />
         <div>
           <h2 className="text-2xl font-semibold">{creator.username}</h2>
           <p className="text-sm text-gray-400">Featured Creator</p>
-
           <div className="flex gap-3 mt-3">
-            <Button
-              onClick={handleBoostClick}
-              variant="default"
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              🚀 Boost Creator
-            </Button>
-
-            {/* ✅ Cleaner TipModal */}
+            <Button onClick={handleBoostClick} className="bg-blue-600 hover:bg-blue-700">🚀 Boost Creator</Button>
             <TipModal creatorId={creator.id} username={creator.username} />
           </div>
         </div>
@@ -134,36 +140,65 @@ export default function PublicProfilePage() {
       <div>
         <h3 className="text-xl font-semibold mb-4">Creator Reels</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {clips.length > 0 ? (
-            clips.map((clip) => (
-              <div
-                key={clip.id}
-                className="bg-[#1a1a1a] rounded-md overflow-hidden border border-gray-700"
-              >
-                {clip.mediaUrl ? (
-                  <video
-                    src={clip.mediaUrl}
-                    className="w-full h-40 object-cover"
-                    controls
-                  />
-                ) : (
-                  <div className="h-40 bg-gray-800 flex items-center justify-center text-sm text-gray-400">
-                    No video uploaded
-                  </div>
-                )}
-                <div className="p-3">
-                  <h4 className="font-medium text-sm">
-                    {clip.title || 'Untitled'}
-                  </h4>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Views: {clip.views || 0}
-                  </p>
+          {clips.map((clip) => (
+            <div key={clip.id} className="bg-[#1a1a1a] rounded overflow-hidden border border-gray-700 relative">
+              <video src={clip.mediaUrl} className="w-full h-40 object-cover" controls />
+              <div className="relative p-3 bg-gradient-to-t from-black/80 to-transparent">
+                <h4 className="text-sm font-semibold">{clip.title}</h4>
+                <p className="text-xs text-gray-300">Views: {clip.views || 0} • Tips: ${clip.tips?.toFixed(2) || '0.00'}</p>
+                <div className="flex gap-2 mt-2">
+                  <TipModal creatorId={creator.id} username={creator.username} />
+                  <button
+                    onClick={() => setActiveClipId(clip.id)}
+                    className="text-xs bg-white/10 px-3 py-1 rounded hover:bg-white/20 transition"
+                  >
+                    💬 Comment
+                  </button>
                 </div>
               </div>
-            ))
-          ) : (
-            <p className="text-gray-400">No reels found.</p>
-          )}
+
+              {/* Comment Modal */}
+              {activeClipId === clip.id && (
+                <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center">
+                  <div className="bg-[#121212] p-6 rounded-lg w-full max-w-md relative shadow-lg text-white">
+                    <button onClick={() => setActiveClipId(null)} className="absolute top-4 right-4 text-gray-400 hover:text-white">
+                      <FaTimes />
+                    </button>
+                    <h2 className="text-xl font-bold mb-4"> Comments</h2>
+
+                    <div className="max-h-64 overflow-y-auto mb-4 border border-zinc-800 p-3 rounded bg-zinc-900/60 space-y-2">
+                      {comments[clip.id]?.length ? (
+                        comments[clip.id].map((c, i) => (
+                          <div key={i} className="flex items-start gap-3 text-sm text-gray-300">
+                            <Image src={c.avatar || "/default-avatar.png"} alt="avatar" width={24} height={24} className="rounded-full object-cover" />
+                            <div className="bg-zinc-800 p-2 rounded-lg w-full">
+                              <p className="font-semibold text-white text-xs">{c.user || 'Anon'}</p>
+                              <p>{c.text}</p>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-gray-500 text-sm">No comments yet.</p>
+                      )}
+                    </div>
+
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newComment}
+                        onChange={(e) => setNewComment(e.target.value)}
+                        placeholder="Write a comment..."
+                        className="flex-1 p-2 rounded bg-zinc-800 border border-zinc-600 outline-none"
+                      />
+                      <button onClick={() => handleSubmitComment(clip.id)} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-sm font-medium">
+                        Send
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       </div>
     </div>

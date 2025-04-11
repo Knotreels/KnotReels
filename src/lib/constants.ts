@@ -49,12 +49,15 @@ export type Movie = {
   id: number;
   title: string;
   overview: string;
-  poster_path: string;
-  backdrop_path: string;
-  release_date: string;
-  genre_ids: number[];
-  vote_average: number;
+  poster_path?: string;
+  backdrop_path?: string;
+  release_date?: string;
+  genre_ids?: number[];
+  vote_average?: number;
+  href?: string;
+  username?: string;
 };
+
 
 // Genres
 export const GENRES = [

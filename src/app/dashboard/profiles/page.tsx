@@ -74,20 +74,19 @@ export default function ProfilePage() {
 
         setClips(clipData);
 
-        // 🔁 Sync comments per clip
+        // 🔁 Fetch comments per clip
         clipData.forEach((clip) => {
           const q = query(
             collection(db, 'comments'),
             where('clipId', '==', clip.id),
             orderBy('createdAt', 'desc')
           );
-
           onSnapshot(q, (snapshot) => {
             setComments((prev) => ({
               ...prev,
-              [clip.id]: snapshot.docs.map((doc) => ({
-                id: doc.id,
-                ...doc.data(),
+              [clip.id]: snapshot.docs.map((d) => ({
+                id: d.id,
+                ...d.data(),
               })),
             }));
           });
@@ -145,7 +144,7 @@ export default function ProfilePage() {
     await addDoc(collection(db, 'comments'), {
       clipId,
       text: newComment,
-      user: user.username || "Anon",
+      user: user.username || user.email || "Anon",
       avatar: user.avatar || "/default-avatar.png",
       createdAt: Timestamp.now(),
     });
@@ -158,7 +157,7 @@ export default function ProfilePage() {
 
   return (
     <div className="space-y-10 px-6 pt-10 text-white">
-      {/* Avatar + Info */}
+      {/* Header */}
       <div className="flex items-center gap-6">
         <div className="relative group w-16 h-16">
           <input
@@ -190,6 +189,7 @@ export default function ProfilePage() {
         <Stat label="Views" value={totalViews} />
       </div>
 
+      {/* Upload button */}
       <Link
         href="/upload"
         className="inline-block bg-blue-600 hover:bg-blue-700 px-6 py-3 text-white rounded-md font-medium transition"
@@ -197,21 +197,15 @@ export default function ProfilePage() {
         + Upload New Reel
       </Link>
 
+      {/* Reel Grid */}
       <div>
         <h3 className="text-xl font-semibold mb-4">Your Latest Uploads</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {clips.length > 0 ? (
             clips.map((clip) => (
-              <div
-                key={clip.id}
-                className="bg-[#1a1a1a] rounded-md overflow-hidden border border-gray-700 relative"
-              >
+              <div key={clip.id} className="bg-[#1a1a1a] rounded-md overflow-hidden border border-gray-700 relative">
                 {clip.mediaUrl ? (
-                  <video
-                    src={clip.mediaUrl}
-                    className="w-full h-40 object-cover"
-                    controls
-                  />
+                  <video src={clip.mediaUrl} className="w-full h-40 object-cover" controls />
                 ) : (
                   <div className="h-40 bg-gray-800 flex items-center justify-center text-sm text-gray-400">
                     No video uploaded
@@ -234,12 +228,12 @@ export default function ProfilePage() {
                       onClick={() => setActiveClipId(clip.id)}
                       className="text-xs bg-white/10 px-3 py-1 rounded hover:bg-white/20 transition"
                     >
-                       Comment
+                      💬 Comment
                     </button>
                   </div>
                 </div>
 
-                {/* Comments Modal */}
+                {/* Comment Modal */}
                 {activeClipId === clip.id && (
                   <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center">
                     <div className="bg-[#121212] text-white rounded-lg w-full max-w-md p-6 relative shadow-xl">

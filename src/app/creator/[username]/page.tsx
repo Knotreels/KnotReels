@@ -99,13 +99,13 @@ export default function PublicProfilePage() {
   };
 
   const handleSubmitComment = async (clipId: string) => {
-    if (!newComment.trim() || !currentUser?.uid) return;
-
+    if (!newComment.trim() || !currentUser) return;
+  
     await addDoc(collection(db, 'comments'), {
       clipId,
       text: newComment,
-      user: currentUser.displayName || 'Anon',
-      avatar: currentUser.photoURL || '/default-avatar.png',
+      user: currentUser.displayName || currentUser.email || "Anon",
+      avatar: currentUser.photoURL || "/default-avatar.png",
       createdAt: Timestamp.now(),
     });
 

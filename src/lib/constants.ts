@@ -53,9 +53,10 @@ export type Movie = {
   backdrop_path?: string;
   release_date?: string;
   genre_ids?: number[];
+  uid?: string;
+  username?: string;
   vote_average?: number;
   href?: string;
-  username?: string;
 };
 
 

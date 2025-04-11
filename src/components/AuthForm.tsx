@@ -75,7 +75,7 @@ export default function AuthForm({ type, redirectTo }: AuthFormProps) {
       if (redirectTo === "subscribe") {
         router.push("/subscribe");
       } else {
-        router.push("/dashboard/profiles");
+        router.push("/dashboard/browse");
       }
     } catch (err: any) {
       setFirebaseError(err.message);

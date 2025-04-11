@@ -1,8 +1,10 @@
 'use client';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/firebase/config';
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { Movie } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import CommentModal from "@/components/CommentModal";
@@ -11,11 +13,12 @@ import { FaCommentDots } from "react-icons/fa6";
 interface MovieCardProps {
   movie: Movie;
   className?: string;
-  showStats?: boolean; // ✅ NEW
+  showStats?: boolean;
 }
 
 export default function MovieCard({ movie, className, showStats = false }: MovieCardProps) {
   const [showComments, setShowComments] = useState(false);
+  const [creatorName, setCreatorName] = useState<string>('Unknown');
 
   const href =
     movie.href || (movie.overview === "Boosted Creator"
@@ -27,6 +30,13 @@ export default function MovieCard({ movie, className, showStats = false }: Movie
       ? "border-2 border-yellow-500 shadow-[0_0_25px_rgba(255,215,0,0.6)] hover:shadow-[0_0_35px_rgba(255,215,0,0.8)]"
       : "";
 
+  // 🔁 Fetch creator's username from Firestore
+  
+  <div className="text-sm text-gray-400 mt-1">
+  Creator: {movie.username || 'Unknown'}
+</div>
+
+   
   return (
     <>
       <Link href={href} className="block group">
@@ -53,15 +63,14 @@ export default function MovieCard({ movie, className, showStats = false }: Movie
             </div>
           )}
 
-          {movie.username && (
-            <div className="absolute bottom-0 w-full bg-black/70 text-white text-xs text-center py-1 opacity-0 group-hover:opacity-100 transition">
-              {movie.username}
-            </div>
-          )}
+          {/* 👤 Creator name overlay */}
+          <div className="absolute bottom-0 w-full bg-black/70 text-white text-xs text-center py-1 opacity-0 group-hover:opacity-100 transition">
+            Creator: {creatorName}
+          </div>
         </div>
       </Link>
 
-      {/* 🧾 Creator Stats & Comments only for Reels */}
+      {/* 📊 Stats + Comment */}
       {showStats && (
         <div className="mt-2 px-1 text-sm text-gray-300 flex items-center justify-between">
           <div>
@@ -69,7 +78,6 @@ export default function MovieCard({ movie, className, showStats = false }: Movie
             <span className="text-xs">Views: 0 • Tips: $0.00</span>
           </div>
 
-          {/* 🗨️ Comment Button */}
           <button
             onClick={() => setShowComments(true)}
             className="text-blue-400 hover:text-white transition text-sm"
@@ -80,8 +88,12 @@ export default function MovieCard({ movie, className, showStats = false }: Movie
         </div>
       )}
 
-      {/* 🪟 Comment Modal */}
-      <CommentModal isOpen={showComments} onClose={() => setShowComments(false)} />
+      {/* 💬 Comment Modal */}
+      <CommentModal
+        isOpen={showComments}
+        onClose={() => setShowComments(false)}
+        clipId={movie.id ? String(movie.id) : ""}
+      />
     </>
   );
 }

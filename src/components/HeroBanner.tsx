@@ -78,12 +78,12 @@ const HeroBanner = ({ boosted = [] }: HeroBannerProps) => {
           </motion.div>
         )}
 
-        {/* 🔥 Boosted Creators Carousel */}
+        {/*  Featured Creators */}
         {isBrowsePage && boosted.length > 0 && (
           <>
             <div className="mt-28 px-4 md:px-8">
               <MovieRow
-                title="🔥 Boosted Creators"
+                title="Featured Creators"
                 cardSize="large"
                 autoScroll
                 scrollSpeed={4000}

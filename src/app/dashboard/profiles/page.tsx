@@ -22,6 +22,7 @@ import {
   updateDoc,
   addDoc,
   Timestamp,
+  increment,
 } from 'firebase/firestore';
 import {
   ref,
@@ -33,6 +34,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import LogoLoader from '@/components/LogoLoader';
 import { FaTimes } from 'react-icons/fa';
+import UploadModal from '@/components/UploadModal';
 
 export default function ProfilePage() {
   const [user, setUser] = useState<any>(null);
@@ -43,6 +45,7 @@ export default function ProfilePage() {
   const [newComment, setNewComment] = useState('');
   const [comments, setComments] = useState<{ [key: string]: any[] }>({});
   const prevBoostsRef = useRef<number | null>(null);
+  const [showUpload, setShowUpload] = useState(false);
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
@@ -74,7 +77,6 @@ export default function ProfilePage() {
 
         setClips(clipData);
 
-        // 🔁 Fetch comments per clip
         clipData.forEach((clip) => {
           const q = query(
             collection(db, 'comments'),
@@ -152,6 +154,17 @@ export default function ProfilePage() {
     setNewComment('');
   };
 
+  const handleView = async (clipId: string) => {
+    try {
+      const clipRef = doc(db, 'clips', clipId);
+      await updateDoc(clipRef, {
+        views: increment(1),
+      });
+    } catch (error) {
+      console.error('Error updating view count:', error);
+    }
+  };
+
   if (loading) return <LogoLoader />;
   if (!user) return <div className="p-6 text-white">User not found.</div>;
 
@@ -188,49 +201,66 @@ export default function ProfilePage() {
         <Stat label="Views" value={totalViews} />
       </div>
 
-      {/* Upload button */}
-      <Link
-        href="/upload"
-        className="inline-block bg-blue-600 hover:bg-blue-700 px-6 py-3 text-white rounded-md font-medium transition"
-      >
-        + Upload New Reel
+      {/* Upload */}
+      <Link href="#">
+        <button
+          onClick={() => setShowUpload(true)}
+          className="bg-blue-600 hover:bg-blue-700 px-6 py-3 text-white rounded-md font-medium transition"
+        >
+          + Upload New Reel
+        </button>
       </Link>
+      {showUpload && <UploadModal onClose={() => setShowUpload(false)} />}
 
-      {/* Reel Grid */}
+      {/* Clips Grid */}
       <div>
         <h3 className="text-xl font-semibold mb-4">Your Latest Uploads</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {clips.length > 0 ? (
-            clips.map((clip) => (
-              <div key={clip.id} className="bg-[#1a1a1a] rounded-md overflow-hidden border border-gray-700 relative">
-                {clip.mediaUrl ? (
-                  <video src={clip.mediaUrl} className="w-full h-40 object-cover" controls />
-                ) : (
-                  <div className="h-40 bg-gray-800 flex items-center justify-center text-sm text-gray-400">
-                    No video uploaded
-                  </div>
-                )}
-
-                <div className="relative p-3 bg-gradient-to-t from-black/80 to-transparent text-white">
-                  <h4 className="text-sm font-semibold truncate">{clip.title || 'Untitled'}</h4>
-                  <p className="text-xs text-gray-300">
-                    Views: {clip.views || 0} • Tips: ${clip.tips?.toFixed(2) || '0.00'}
-                  </p>
-                  <div className="flex gap-2 mt-2">
+           clips.map((clip) => (
+            <div key={clip.id} className="bg-[#1a1a1a] rounded-md overflow-hidden border border-gray-700 relative">
+              {clip.mediaUrl ? (
+                <div className="w-full bg-black flex items-center justify-center overflow-hidden">
+                  <video
+                    src={clip.mediaUrl}
+                    className="w-full h- object-cover"
+                    controls
+                    onPlay={() => {
+                      if (clip.uid !== user.uid) handleView(clip.id);
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="h-40 bg-gray-800 flex items-center justify-center text-sm text-gray-400">
+                  No video uploaded
+                </div>
+              )}
+            
+              <div className="relative p-3 bg-gradient-to-t from-black/80 to-transparent text-white">
+                <h4 className="text-sm font-semibold truncate">{clip.title || 'Untitled'}</h4>
+                <p className="text-xs text-gray-300">
+                  Views: {clip.views || 0} • Tips: ${clip.tips?.toFixed(2) || '0.00'}
+                </p>
+                <div className="flex gap-2 mt-2">
+                  {/* Only show tip button if it's not the user's own clip */}
+                  {clip.uid !== user.uid && (
                     <button
                       onClick={() => handleTip(clip.uid || user.uid)}
                       className="bg-green-600 hover:bg-green-700 text-white text-xs px-4 py-1 rounded transition"
                     >
                       💸 Tip Creator
                     </button>
-                    <button
-                      onClick={() => setActiveClipId(clip.id)}
-                      className="text-xs bg-white/10 px-3 py-1 rounded hover:bg-white/20 transition"
-                    >
-                      💬 Comment
-                    </button>
-                  </div>
+                  )}
+          
+                  <button
+                    onClick={() => setActiveClipId(clip.id)}
+                    className="text-xs bg-white/10 px-3 py-1 rounded hover:bg-white/20 transition"
+                  >
+                     Comments
+                  </button>
                 </div>
+              </div>
+          
 
                 {/* Comment Modal */}
                 {activeClipId === clip.id && (
@@ -243,7 +273,7 @@ export default function ProfilePage() {
                         <FaTimes />
                       </button>
 
-                      <h2 className="text-xl font-semibold mb-4">💬 Comments</h2>
+                      <h2 className="text-xl font-semibold mb-4"> Comments</h2>
                       <div className="space-y-3 max-h-64 overflow-y-auto mb-4 border border-zinc-800 p-2 rounded bg-zinc-900/60">
                         {comments[clip.id]?.length > 0 ? (
                           comments[clip.id].map((c, i) => (

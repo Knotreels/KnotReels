@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/firebase/config';
-import rawNavItems from './Sidebar.tsx'; // Ensure rawNavItems is correctly typed or transformed
+import rawNavItems from './Sidebar'; // Ensure rawNavItems is correctly typed or transformed
 
 // Transform rawNavItems to match NavItem[] if necessary
 const navItems: NavItem[] = Array.isArray(rawNavItems)

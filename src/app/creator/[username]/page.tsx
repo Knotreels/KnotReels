@@ -12,6 +12,9 @@ import {
   addDoc,
   Timestamp,
   onSnapshot,
+  updateDoc,
+  doc,
+  increment
 } from 'firebase/firestore';
 import Image from 'next/image';
 import LogoLoader from '@/components/LogoLoader';
@@ -32,6 +35,7 @@ export default function PublicProfilePage() {
   const [activeClipId, setActiveClipId] = useState<string | null>(null);
   const [newComment, setNewComment] = useState("");
   const [comments, setComments] = useState<{ [key: string]: any[] }>({});
+  const [viewedClips, setViewedClips] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const fetchData = async () => {
@@ -55,7 +59,6 @@ export default function PublicProfilePage() {
 
           setClips(clipData);
 
-          // 🔁 Live comments per clip
           clipData.forEach((clip) => {
             const q = query(
               collection(db, 'comments'),
@@ -98,16 +101,30 @@ export default function PublicProfilePage() {
     }
   };
 
-  const handleSubmitComment = async (clipId: string) => {
-  if (!newComment.trim() || !currentUser) return;
+  const handleView = async (clipId: string) => {
+    if (viewedClips.has(clipId)) return;
 
-  await addDoc(collection(db, 'comments'), {
-    clipId,
-    text: newComment,
-    user: currentUser.displayName || "Creator",
-    avatar: currentUser.photoURL || "/default-avatar.png",
-    createdAt: Timestamp.now(),
-  });
+    try {
+      const clipRef = doc(db, 'clips', clipId);
+      await updateDoc(clipRef, {
+        views: increment(1),
+      });
+      setViewedClips((prev) => new Set(prev).add(clipId));
+    } catch (err) {
+      console.error("Failed to increment views:", err);
+    }
+  };
+
+  const handleSubmitComment = async (clipId: string) => {
+    if (!newComment.trim() || !currentUser) return;
+
+    await addDoc(collection(db, 'comments'), {
+      clipId,
+      text: newComment,
+      user: currentUser.displayName || "Creator",
+      avatar: currentUser.photoURL || "/default-avatar.png",
+      createdAt: Timestamp.now(),
+    });
 
     setNewComment('');
   };
@@ -142,7 +159,12 @@ export default function PublicProfilePage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {clips.map((clip) => (
             <div key={clip.id} className="bg-[#1a1a1a] rounded overflow-hidden border border-gray-700 relative">
-              <video src={clip.mediaUrl} className="w-full h-40 object-cover" controls />
+              <video
+                src={clip.mediaUrl}
+                className="w-full h-40 object-cover"
+                controls
+                onPlay={() => handleView(clip.id)}
+              />
               <div className="relative p-3 bg-gradient-to-t from-black/80 to-transparent">
                 <h4 className="text-sm font-semibold">{clip.title}</h4>
                 <p className="text-xs text-gray-300">Views: {clip.views || 0} • Tips: ${clip.tips?.toFixed(2) || '0.00'}</p>
@@ -152,7 +174,7 @@ export default function PublicProfilePage() {
                     onClick={() => setActiveClipId(clip.id)}
                     className="text-xs bg-white/10 px-3 py-1 rounded hover:bg-white/20 transition"
                   >
-                    💬 Comment
+                     Comments
                   </button>
                 </div>
               </div>

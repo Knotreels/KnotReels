@@ -64,9 +64,9 @@ export default function BrowsePage() {
       </div>
 
       <section className="relative z-10 w-full px-6 space-y-10 pb-14">
-        {/* 🎭 Categories */}
+        {/* Categories */}
         <MovieRow
-          title="🎭 Categories"
+          title=" Categories"
           cardSize="large"
           movies={CATEGORIES.map((category, index) => ({
             id: index,

@@ -13,7 +13,7 @@ export default function ClassCard({ classData }: { classData: any }) {
   const [loading, setLoading] = useState(false);
   const [enrolled, setEnrolled] = useState(false);
 
-  const { user } = useAuth(); // Access the logged-in user
+  const { currentUser } = useAuth(); // Access the logged-in user
 
   useEffect(() => {
     const fetchCreator = async () => {
@@ -30,18 +30,18 @@ export default function ClassCard({ classData }: { classData: any }) {
   }, [classData.creatorId]);
 
   const handleEnroll = async () => {
-    if (!user) return alert('Please log in first.');
+    if (!currentUser) return alert('Please log in first.');
 
     try {
       setLoading(true);
-      const userId = user.uid!;
+      const userId = currentUser.uid!;
       await enrollUserInClass(classData.id as string, userId);
       setEnrolled(true);
 
       // Optional: Navigate to a classroom page after enrollment
       // router.push(`/classroom/${classData.id}`);
     } catch (err) {
-      console.error('🔥 Enrollment failed:', err);
+      console.error('Enrollment failed:', err);
       alert('Failed to enroll. Try again.');
     } finally {
       setLoading(false);

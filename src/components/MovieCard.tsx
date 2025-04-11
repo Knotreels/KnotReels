@@ -44,7 +44,7 @@ export default function MovieCard({ movie, className, showStats = false }: Movie
           className={cn(
             "relative aspect-[2/3] rounded overflow-hidden cursor-pointer transition-transform duration-300 ease-in-out hover:scale-105 hover:z-10",
             boostedGlowClasses,
-            className
+            className,
           )}
         >
           {movie.poster_path ? (

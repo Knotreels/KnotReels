@@ -219,7 +219,7 @@ export default function Sidebar({ isOpen, onClose = () => {} }: SidebarProps) {
       <div className="flex flex-col gap-3 px-2 text-white">
         <a href="https://x.com/KnotReels" target="_blank" className="flex items-center gap-2 hover:text-white transition">
           <FaXTwitter className="w-5 h-5 text-white" />
-          {!collapsed && <span className="text-sm">X</span>}
+          {!collapsed && <span className="text-sm"></span>}
         </a>
         <a href="https://www.instagram.com/__knotreels__" target="_blank" className="flex items-center gap-2 hover:text-pink-500 transition">
           <FaInstagram className="w-5 h-5 text-pink-500" />

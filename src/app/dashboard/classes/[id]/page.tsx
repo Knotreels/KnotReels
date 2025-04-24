@@ -67,7 +67,7 @@ export default function ClassDetailPage() {
       <h1 className="text-3xl font-bold">{classInfo.title}</h1>
       <p className="text-gray-300">{classInfo.description}</p>
       <p className="text-blue-400 font-semibold text-lg">${classInfo.price?.toFixed(2)}</p>
-
+  
       {!enrolled ? (
         <Button onClick={handleEnroll} className="mt-4">
           🎓 Enroll in Class
@@ -75,6 +75,17 @@ export default function ClassDetailPage() {
       ) : (
         <p className="text-green-400 font-medium mt-4">✅ You’re enrolled in this class!</p>
       )}
+  
+      {enrolled && classInfo.dailyUrl && (
+        <div className="mt-8 aspect-video w-full rounded-lg overflow-hidden border border-gray-700">
+          <iframe
+            src={classInfo.dailyUrl}
+            allow="camera; microphone; fullscreen; display-capture"
+            className="w-full h-full"
+          />
+        </div>
+      )}
     </div>
   );
+  
 }

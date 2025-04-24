@@ -6,6 +6,7 @@ import {
   FaUsers,
   FaChalkboardTeacher,
   FaImages,
+  FaBookOpen,
 } from "react-icons/fa";
 
 export interface NavItem {
@@ -25,6 +26,7 @@ export const navSections: NavSection[] = [
     heading: "User",
     items: [
       { label: "Profile", icon: FaUser, href: "/dashboard/profiles" },
+      { label: "Users", icon: FaUsers, href: "/dashboard/users" }, // 👈 Added here, right under Profile
     ],
   },
   {
@@ -33,6 +35,7 @@ export const navSections: NavSection[] = [
       { label: "Explore", icon: FaHome, href: "/dashboard/browse" },
       { label: "Gallery", icon: FaImages, href: "/dashboard/gallery" },
       { label: "Clips", icon: FaVideo, href: "/dashboard/clips" },
+      { label: "Comic Books", icon: FaBookOpen, href: "/comics" },
     ],
   },
   {

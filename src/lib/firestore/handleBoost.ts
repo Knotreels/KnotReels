@@ -1,4 +1,5 @@
-import { doc, updateDoc, increment, setDoc, getDoc } from "firebase/firestore";
+'use client'
+import { doc, updateDoc, increment, setDoc, getDoc, Timestamp } from "firebase/firestore";
 import { db } from "@/firebase/config";
 import { canUserBoost } from "./canUserBoost";
 import { toast } from "@/hooks/use-toast";
@@ -31,35 +32,31 @@ export async function handleBoost(creatorId: string, userId: string): Promise<bo
   const currentBoosts = Number(creatorSnap.data()?.boosts || 0);
   console.log("💥 Current boosts:", currentBoosts);
 
-  if (currentBoosts >= 10) {
-    toast({
-      title: "🎉 Boost Limit Reached!",
-      description: "This creator already has 10 boosts.",
-    });
-    return false;
-  }
-
   try {
-    // 1️⃣ Increment boosts
-    await updateDoc(creatorRef, { boosts: increment(1) });
-
-    // 2️⃣ Log boost to prevent spamming
+    // 1️⃣ Log boost to prevent spamming
     const boostLogRef = doc(db, "boosts", creatorId);
     await setDoc(boostLogRef, { [userId]: new Date().toISOString() }, { merge: true });
 
-    console.log("✅ Boost logged successfully");
-
-    // 3️⃣ Handle 10th boost special case
-    if (currentBoosts + 1 === 10) {
-      await updateDoc(creatorRef, { isFeatured: true });
+    // 2️⃣ Handle the 20th boost milestone
+    if (currentBoosts + 1 === 20) {
+      await updateDoc(creatorRef, {
+        isFeatured: true,
+        lastBoostedAt: Timestamp.now(),
+        boosts: 0, // RESET boost count
+      });
 
       confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
 
       toast({
         title: "🌟 Creator Featured!",
-        description: "They've hit 10 boosts and made the front page!",
+        description: "They've hit 20 boosts and made the front page!",
       });
     } else {
+      // 3️⃣ Normal boost
+      await updateDoc(creatorRef, {
+        boosts: increment(1),
+      });
+
       toast({
         title: "🚀 Boost Sent!",
         description: "Thanks for supporting this creator!",

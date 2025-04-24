@@ -29,10 +29,14 @@ export default function BrowsePage() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        const userData = userDoc.data();
-        if (userData?.avatar) {
-          setAvatarUrl(userData.avatar);
+        const userDocRef = doc(db, 'users', user.uid);
+        const userDoc = await getDoc(userDocRef);
+
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          if (userData?.avatar) {
+            setAvatarUrl(userData.avatar);
+          }
         }
       }
     });
@@ -42,14 +46,14 @@ export default function BrowsePage() {
 
   return (
     <>
-      {/* 👤 Avatar → Profile link */}
+      {/* 👤 Profile Avatar (top right) */}
       {avatarUrl && (
         <Link
           href="/dashboard/profiles"
           className="absolute top-6 right-6 z-30"
         >
           <Image
-            src={avatarUrl}
+            src={avatarUrl || '/default-avatar.png'}
             alt="Profile"
             width={44}
             height={44}
@@ -58,15 +62,15 @@ export default function BrowsePage() {
         </Link>
       )}
 
-      {/* ✅ HeroBanner with boosted creators */}
+      {/* 🚀 Boosted Creators Hero */}
       <div className="-mb-4">
         <HeroBanner boosted={boosted} />
       </div>
 
+      {/* 📂 Categories */}
       <section className="relative z-10 w-full px-6 space-y-10 pb-14">
-        {/* Categories */}
         <MovieRow
-          title=" Categories"
+          title=" Sponsored "
           cardSize="large"
           movies={CATEGORIES.map((category, index) => ({
             id: index,

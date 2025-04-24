@@ -1,11 +1,17 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, ChangeEvent } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { db, storage, auth } from '@/firebase/config';
-import { collection, addDoc, serverTimestamp, getDoc, doc } from 'firebase/firestore';
+import {
+  collection,
+  addDoc,
+  serverTimestamp,
+  getDoc,
+  doc
+} from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -14,24 +20,27 @@ import { CATEGORIES } from '@/lib/constants';
 import { v4 as uuidv4 } from 'uuid';
 
 const schema = z.object({
-  title: z.string().min(1, 'Title is required'),
-  mediaUrl: z.string().optional(),
-  category: z.string().min(1, 'Please select a category'),
+  title:      z.string().min(1, 'Title is required'),
+  description: z.string().min(1, 'Description is required'),    // ← new
+  mediaUrl:   z.string().optional(),
+  category:   z.string().min(1, 'Please select a category'),
 });
+
+type FormData = z.infer<typeof schema>;
 
 export default function UploadContentPage() {
   const router = useRouter();
   const modalRef = useRef<HTMLDivElement | null>(null);
 
-  const [loading, setLoading] = useState(false);
-  const [file, setFile] = useState<File | null>(null);
+  const [loading, setLoading]     = useState(false);
+  const [file, setFile]           = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm({
+  } = useForm<FormData>({
     resolver: zodResolver(schema),
   });
 
@@ -54,17 +63,18 @@ export default function UploadContentPage() {
     }
   };
 
-  const onSubmit = async (data: any) => {
+  const onSubmit = async (data: FormData) => {
     setLoading(true);
 
     try {
       if (!auth.currentUser) {
-        alert('You must be signed in to upload.');
+        alert('❌ You must be signed in to upload.');
         return;
       }
 
-      let finalMediaUrl = data.mediaUrl;
+      let finalMediaUrl = data.mediaUrl?.trim() ?? '';
 
+      // If file selected, upload to Storage
       if (file) {
         const fileRef = ref(storage, `uploads/${uuidv4()}-${file.name}`);
         await uploadBytes(fileRef, file);
@@ -72,26 +82,37 @@ export default function UploadContentPage() {
       }
 
       if (!finalMediaUrl) {
-        alert('Please provide a media URL or upload a file.');
+        alert('❌ Please provide a media URL or upload a file.');
         return;
       }
 
-      // ✅ Fetch username from Firestore
+      // Fetch user profile for username/avatar
       const userRef = doc(db, 'users', auth.currentUser.uid);
       const userSnap = await getDoc(userRef);
       const userData = userSnap.exists() ? userSnap.data() : {};
 
-      await addDoc(collection(db, 'clips'), {
-        title: data.title,
-        mediaUrl: finalMediaUrl,
-        category: data.category,
-        uid: auth.currentUser.uid,
-        username: userData.username || 'Unknown', // ✅ Add the username here
-        createdAt: serverTimestamp(),
-      });
+      const categorySlug = data.category.toLowerCase().replace(/\s+/g, '-');
 
-      alert('✅ Content uploaded successfully!');
-      router.push('/dashboard/profiles');
+      // Write into categories/{slug}/clips
+      await addDoc(
+        collection(db, 'categories', categorySlug, 'clips'),
+        {
+          title:        data.title.trim(),
+          description:  data.description.trim(),       // ← include here
+          mediaUrl:     finalMediaUrl,
+          category:     data.category,
+          categorySlug,
+          uid:          auth.currentUser.uid,
+          username:     userData.username || 'creator',
+          avatar:       userData.avatar   || '/default-avatar.png',
+          createdAt:    serverTimestamp(),
+          views:        0,
+          tips:         0,
+        }
+      );
+
+      alert('✅ Content uploaded to category!');
+      router.push(`/category/${categorySlug}`);
     } catch (err: any) {
       alert(`Upload failed: ${err.message}`);
     } finally {
@@ -99,14 +120,12 @@ export default function UploadContentPage() {
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0] || null;
     setFile(selected);
     if (selected) {
       const reader = new FileReader();
-      reader.onload = () => {
-        setPreviewUrl(reader.result as string);
-      };
+      reader.onload = () => setPreviewUrl(reader.result as string);
       reader.readAsDataURL(selected);
     } else {
       setPreviewUrl(null);
@@ -130,21 +149,41 @@ export default function UploadContentPage() {
           ✕
         </button>
 
-        <h1 className="text-2xl font-semibold mb-6 text-center text-white">📤 Upload Content</h1>
+        <h1 className="text-2xl font-semibold mb-6 text-center text-white">
+          Upload Content
+        </h1>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 text-white">
           {/* Title */}
           <div>
             <label className="block mb-1 text-sm text-gray-300">Title</label>
             <Input placeholder="Enter a title..." {...register('title')} />
-            {errors.title && <p className="text-red-400 text-xs mt-1">{errors.title.message}</p>}
+            {errors.title && (
+              <p className="text-red-400 text-xs mt-1">{errors.title.message}</p>
+            )}
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block mb-1 text-sm text-gray-300">Description</label>
+            <textarea
+              rows={3}
+              {...register('description')}
+              className="w-full p-2 rounded bg-[#1a1a1a] border border-gray-600 text-white resize-none"
+              placeholder="Describe your film..."
+            />
+            {errors.description && (
+              <p className="text-red-400 text-xs mt-1">{errors.description.message}</p>
+            )}
           </div>
 
           {/* Media URL */}
           <div>
             <label className="block mb-1 text-sm text-gray-300">Media URL (optional)</label>
             <Input placeholder="Paste a video/image URL" {...register('mediaUrl')} />
-            <p className="text-xs text-gray-500 mt-1">e.g. From Runway, MidJourney, Imgur, etc.</p>
+            <p className="text-xs text-gray-500 mt-1">
+              e.g. From Runway, MidJourney, Imgur, etc.
+            </p>
           </div>
 
           {/* Upload File */}
@@ -159,17 +198,9 @@ export default function UploadContentPage() {
             {previewUrl && (
               <div className="mt-3 rounded overflow-hidden border border-gray-700">
                 {file?.type.startsWith('video') ? (
-                  <video
-                    src={previewUrl}
-                    controls
-                    className="w-full h-48 object-cover"
-                  />
+                  <video src={previewUrl} controls className="w-full h-48 object-cover" />
                 ) : (
-                  <img
-                    src={previewUrl}
-                    alt="Preview"
-                    className="w-full h-48 object-cover"
-                  />
+                  <img src={previewUrl} alt="Preview" className="w-full h-48 object-cover" />
                 )}
               </div>
             )}

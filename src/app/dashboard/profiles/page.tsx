@@ -47,61 +47,89 @@ export default function ProfilePage() {
   const prevBoostsRef = useRef<number | null>(null);
   const [showUpload, setShowUpload] = useState(false);
 
+  // ** NEW: bio editing state **
+  const [bio, setBio] = useState<string>('');
+  const [editingBio, setEditingBio] = useState(false);
+
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         const userRef = doc(db, 'users', currentUser.uid);
 
-        const unsubscribeBoosts = onSnapshot(userRef, (docSnap) => {
+        // subscribe to user doc (including bio)
+        const unsubscribeUser = onSnapshot(userRef, (docSnap) => {
           const data = docSnap.data();
           if (!data) return;
           setUser({ uid: currentUser.uid, ...data });
+          setBio(data.bio || ''); // load bio
 
+          // notify on boosts
           const currentBoosts = data.boosts || 0;
-          if (prevBoostsRef.current !== null && currentBoosts > prevBoostsRef.current) {
+          if (
+            prevBoostsRef.current !== null &&
+            currentBoosts > prevBoostsRef.current
+          ) {
             alert('🚀 You’ve just been boosted by a fan!');
           }
           prevBoostsRef.current = currentBoosts;
         });
 
+        // fetch clips
         const clipsQuery = query(
           collection(db, 'clips'),
           where('uid', '==', currentUser.uid),
           orderBy('createdAt', 'desc')
         );
         const clipsSnap = await getDocs(clipsQuery);
-        const clipData = clipsSnap.docs.map((doc) => ({
-          id: doc.id,
-          ...(doc.data() as any),
+        const clipData = clipsSnap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as any),
         }));
 
         setClips(clipData);
 
+        // subscribe to comments for each clip
         clipData.forEach((clip) => {
           const q = query(
             collection(db, 'comments'),
             where('clipId', '==', clip.id),
             orderBy('createdAt', 'desc')
           );
-          onSnapshot(q, (snapshot) => {
+          onSnapshot(q, (snap) => {
             setComments((prev) => ({
               ...prev,
-              [clip.id]: snapshot.docs.map((d) => ({
-                id: d.id,
-                ...d.data(),
-              })),
+              [clip.id]: snap.docs.map((d) => ({ id: d.id, ...d.data() })),
             }));
           });
         });
 
-        const viewsSum = clipData.reduce((acc, clip) => acc + (clip.views || 0), 0);
+        // compute total views
+        const viewsSum = clipData.reduce(
+          (acc, clip) => acc + (clip.views || 0),
+          0
+        );
         setTotalViews(viewsSum);
-      }
-      setLoading(false);
-    });
 
+        setLoading(false);
+        return () => unsubscribeUser();
+      } else {
+        setLoading(false);
+      }
+    });
     return () => unsubscribeAuth();
   }, []);
+
+  // save updated bio back to Firestore
+  const saveBio = async () => {
+    if (!user) return;
+    try {
+      await updateDoc(doc(db, 'users', user.uid), { bio });
+      setEditingBio(false);
+    } catch (err) {
+      console.error('❌ Failed to save bio:', err);
+      alert('Failed to save bio.');
+    }
+  };
 
   const handleAvatarChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -145,12 +173,11 @@ export default function ProfilePage() {
 
     await addDoc(collection(db, 'comments'), {
       clipId,
-      text: newComment,
-      user: user.username || user.email || "Anon",
-      avatar: user.avatar || "/default-avatar.png",
+      text: newComment.trim(),
+      user: user.username || 'Creator',
+      avatar: user.avatar || '/default-avatar.png',
       createdAt: Timestamp.now(),
     });
-
     setNewComment('');
   };
 
@@ -171,7 +198,7 @@ export default function ProfilePage() {
   return (
     <div className="space-y-10 px-6 pt-10 text-white">
       {/* Header */}
-      <div className="flex items-center gap-6">
+      <div className="flex items-start gap-6">
         <div className="relative group w-16 h-16">
           <input
             type="file"
@@ -189,8 +216,47 @@ export default function ProfilePage() {
             edit
           </span>
         </div>
-        <div>
+        <div className="flex-1">
           <h2 className="text-2xl font-semibold">{user.username || 'Creator'}</h2>
+
+          {/* Bio display / editor */}
+          {editingBio ? (
+            <div className="mt-3 space-y-2">
+              <textarea
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                rows={3}
+                className="w-full p-2 bg-zinc-800 border border-zinc-600 rounded resize-none"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={saveBio}
+                  className="px-3 py-1 bg-green-600 rounded hover:bg-green-700"
+                >
+                  Save Bio
+                </button>
+                <button
+                  onClick={() => {
+                    setBio(user.bio || '');
+                    setEditingBio(false);
+                  }}
+                  className="px-3 py-1 bg-gray-600 rounded hover:bg-gray-700"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-3 flex items-center gap-2">
+              <p className="text-gray-300">{bio || 'No bio yet.'}</p>
+              <button
+                onClick={() => setEditingBio(true)}
+                className="text-blue-400 hover:underline text-sm"
+              >
+                Edit
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -217,50 +283,55 @@ export default function ProfilePage() {
         <h3 className="text-xl font-semibold mb-4">Your Latest Uploads</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {clips.length > 0 ? (
-           clips.map((clip) => (
-            <div key={clip.id} className="bg-[#1a1a1a] rounded-md overflow-hidden border border-gray-700 relative">
-              {clip.mediaUrl ? (
-                <div className="w-full bg-black flex items-center justify-center overflow-hidden">
-                  <video
-                    src={clip.mediaUrl}
-                    className="w-full h- object-cover"
-                    controls
-                    onPlay={() => {
-                      if (clip.uid !== user.uid) handleView(clip.id);
-                    }}
-                  />
-                </div>
-              ) : (
-                <div className="h-40 bg-gray-800 flex items-center justify-center text-sm text-gray-400">
-                  No video uploaded
-                </div>
-              )}
-            
-              <div className="relative p-3 bg-gradient-to-t from-black/80 to-transparent text-white">
-                <h4 className="text-sm font-semibold truncate">{clip.title || 'Untitled'}</h4>
-                <p className="text-xs text-gray-300">
-                  Views: {clip.views || 0} • Tips: ${clip.tips?.toFixed(2) || '0.00'}
-                </p>
-                <div className="flex gap-2 mt-2">
-                  {/* Only show tip button if it's not the user's own clip */}
-                  {clip.uid !== user.uid && (
+            clips.map((clip) => (
+              <div
+                key={clip.id}
+                className="bg-[#1a1a1a] rounded-md overflow-hidden border border-gray-700 relative"
+              >
+                {clip.mediaUrl ? (
+                  <div className="w-full bg-black flex items-center justify-center overflow-hidden">
+                    <video
+                      src={clip.mediaUrl}
+                      className="w-full object-cover"
+                      controls
+                      onPlay={() => {
+                        if (clip.uid !== user.uid) handleView(clip.id);
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="h-40 bg-gray-800 flex items-center justify-center text-sm text-gray-400">
+                    No video uploaded
+                  </div>
+                )}
+
+                <div className="relative p-3 bg-gradient-to-t from-black/80 to-transparent text-white">
+                  <h4 className="text-sm font-semibold truncate">
+                    {clip.title || 'Untitled'}
+                  </h4>
+                  <p className="text-xs text-gray-300">
+                    Creator: {clip.username || 'Unknown'}<br />
+                    Views: {clip.views || 0} • Tips: $
+                    {clip.tips?.toFixed(2) || '0.00'}
+                  </p>
+
+                  <div className="flex gap-2 mt-2">
+                    {clip.uid !== user.uid && (
+                      <button
+                        onClick={() => handleTip(clip.uid || user.uid)}
+                        className="bg-green-600 hover:bg-green-700 text-white text-xs px-4 py-1 rounded transition"
+                      >
+                        💸 Tip Creator
+                      </button>
+                    )}
                     <button
-                      onClick={() => handleTip(clip.uid || user.uid)}
-                      className="bg-green-600 hover:bg-green-700 text-white text-xs px-4 py-1 rounded transition"
+                      onClick={() => setActiveClipId(clip.id)}
+                      className="text-xs bg-white/10 px-3 py-1 rounded hover:bg-white/20 transition"
                     >
-                      💸 Tip Creator
+                      Comments
                     </button>
-                  )}
-          
-                  <button
-                    onClick={() => setActiveClipId(clip.id)}
-                    className="text-xs bg-white/10 px-3 py-1 rounded hover:bg-white/20 transition"
-                  >
-                     Comments
-                  </button>
+                  </div>
                 </div>
-              </div>
-          
 
                 {/* Comment Modal */}
                 {activeClipId === clip.id && (
@@ -273,26 +344,35 @@ export default function ProfilePage() {
                         <FaTimes />
                       </button>
 
-                      <h2 className="text-xl font-semibold mb-4"> Comments</h2>
+                      <h2 className="text-xl font-semibold mb-4">Comments</h2>
                       <div className="space-y-3 max-h-64 overflow-y-auto mb-4 border border-zinc-800 p-2 rounded bg-zinc-900/60">
                         {comments[clip.id]?.length > 0 ? (
                           comments[clip.id].map((c, i) => (
-                            <div key={i} className="flex items-start gap-3 text-sm text-gray-300">
+                            <div
+                              key={i}
+                              className="flex items-start gap-3 text-sm text-gray-300"
+                            >
                               <Image
-                                src={c.avatar || "/default-avatar.png"}
+                                src={c.avatar || '/default-avatar.png'}
                                 alt="user"
                                 width={24}
                                 height={24}
                                 className="rounded-full object-cover"
                               />
                               <div className="bg-zinc-800 px-3 py-2 rounded-lg w-full">
-                                <p className="text-xs text-white font-semibold">{c.user || 'Anon'}</p>
-                                <p className="text-sm text-gray-300">{c.text}</p>
+                                <p className="text-xs text-white font-semibold">
+                                  {c.user || ''}
+                                </p>
+                                <p className="text-sm text-gray-300">
+                                  {c.text}
+                                </p>
                               </div>
                             </div>
                           ))
                         ) : (
-                          <p className="text-sm text-gray-500">No comments yet.</p>
+                          <p className="text-sm text-gray-500">
+                            No comments yet.
+                          </p>
                         )}
                       </div>
                       <div className="flex gap-2">

@@ -18,7 +18,7 @@ interface MovieCardProps {
 
 export default function MovieCard({ movie, className, showStats = false }: MovieCardProps) {
   const [showComments, setShowComments] = useState(false);
-  const [creatorName, setCreatorName] = useState<string>('Unknown');
+  const [creatorName, setCreatorName] = useState<string | null>(null);
 
   const href =
     movie.href || (movie.overview === "Boosted Creator"
@@ -30,13 +30,29 @@ export default function MovieCard({ movie, className, showStats = false }: Movie
       ? "border-2 border-yellow-500 shadow-[0_0_25px_rgba(255,215,0,0.6)] hover:shadow-[0_0_35px_rgba(255,215,0,0.8)]"
       : "";
 
-  // 🔁 Fetch creator's username from Firestore
-  
-  <div className="text-sm text-gray-400 mt-1">
-  Creator: {movie.username || 'Unknown'}
-</div>
+  // ✅ Only fetch creator name for Boosted Creators
+  useEffect(() => {
+    const fetchCreatorName = async () => {
+      if (movie.overview !== "Boosted Creator" || !movie.userId) return;
 
-   
+      try {
+        const userRef = doc(db, "users", movie.userId);
+        const userSnap = await getDoc(userRef);
+
+        if (userSnap.exists()) {
+          const userData = userSnap.data();
+          setCreatorName(userData.username ?? null);
+        } else {
+          console.warn("❌ No user found in Firestore for ID:", movie.userId);
+        }
+      } catch (error) {
+        console.error("🔥 Error fetching creator name:", error);
+      }
+    };
+
+    fetchCreatorName();
+  }, [movie.overview, movie.userId]);
+
   return (
     <>
       <Link href={href} className="block group">
@@ -63,14 +79,25 @@ export default function MovieCard({ movie, className, showStats = false }: Movie
             </div>
           )}
 
-          {/* 👤 Creator name overlay */}
-          <div className="absolute bottom-0 w-full bg-black/70 text-white text-xs text-center py-1 opacity-0 group-hover:opacity-100 transition">
-            Creator: {creatorName}
-          </div>
+          {/* ✅ Creator name overlay ONLY for Boosted */}
+          {movie.overview === "Boosted Creator" && creatorName && (
+            <div className="absolute bottom-0 w-full bg-black/70 text-white text-xs text-center py-1">
+              Creator: {creatorName}
+            </div>
+          )}
+
+          {/* Boosted badge */}
+          {movie.overview === "Boosted Creator" && (
+            <div className="absolute top-2 right-2 bg-yellow-500 text-white text-xs font-semibold px-2 py-1 rounded">
+              Boosted
+            </div>
+          )}
         </div>
       </Link>
 
-      {/* 📊 Stats + Comment */}
+     
+
+      {/* Stats + Comment */}
       {showStats && (
         <div className="mt-2 px-1 text-sm text-gray-300 flex items-center justify-between">
           <div>
@@ -88,7 +115,7 @@ export default function MovieCard({ movie, className, showStats = false }: Movie
         </div>
       )}
 
-      {/* 💬 Comment Modal */}
+      {/* Comment Modal */}
       <CommentModal
         isOpen={showComments}
         onClose={() => setShowComments(false)}

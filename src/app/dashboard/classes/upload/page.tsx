@@ -36,26 +36,38 @@ export default function UploadClassPage() {
   const onSubmit = async (data: any) => {
     const user = auth.currentUser;
     if (!user) return alert("You must be logged in to create a class");
-
+  
     setLoading(true);
+  
     try {
+      // ✅ 1. Create a Daily.co room
+      const res = await fetch('/api/daily/create-room', { method: 'POST' });
+      const dailyData = await res.json();
+  
+      if (!dailyData.url) {
+        throw new Error('Failed to create Daily room');
+      }
+  
+      // ✅ 2. Create the class in Firestore with the room link
       await addDoc(collection(db, 'classes'), {
         ...data,
         creatorId: user.uid,
         createdAt: serverTimestamp(),
         enrolled: [],
         revenue: 0,
+        dailyUrl: dailyData.url, // 👈 Save the room link here
       });
-
-      alert('🎉 Class published!');
+  
+      alert('🎉 Class published and live room ready!');
       router.push('/dashboard/classes');
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert('Error creating class');
+      alert(err.message || 'Error creating class');
     } finally {
       setLoading(false);
     }
   };
+  
 
   return (
     <div className="max-w-xl mx-auto mt-16 text-white space-y-6 px-6">

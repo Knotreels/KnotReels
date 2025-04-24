@@ -104,68 +104,68 @@ export const BOOSTED_CREATORS = [
 // 🎥 Categories
 // constants.ts
 export const CATEGORIES = [
-  
   {
     title: "Filmic",
+    slug: "filmic",
     thumbnail: "/categories/filmics.jpg",
-    href: "/category/filmics",
   },
   {
     title: "Animation",
+    slug: "animation",
     thumbnail: "/categories/animation.jpg",
-    href: "/category/animation",
   },
   {
     title: "Horror",
+    slug: "horror",
     thumbnail: "/categories/horror.jpg",
-    href: "/category/horror",
   },
   {
     title: "Fantasy",
+    slug: "fantasy",
     thumbnail: "/categories/fantasy.jpg",
-    href: "/category/fantasy",
   }, 
   {
     title: "Anime",
+    slug: "anime",
     thumbnail: "/categories/anime.jpg",
-    href: "/category/anime",
   },
   {
     title: "Neon-Noir",
+    slug: "neon-noir",
     thumbnail: "/categories/neon-noir.jpg",
-    href: "/category/neon-noir",
   },
   {
     title: "RetroVision",
+    slug: "retrovision",
     thumbnail: "/categories/retrovision.jpg",
-    href: "/category/retrovision",
   },
   {
     title: "Action",
+    slug: "action",
     thumbnail: "/categories/action.jpg",
-    href: "/category/action",
   },
   {
     title: "Mythology",
+    slug: "mythology",
     thumbnail: "/categories/mythology.jpg",
-    href: "/category/mythology",
   },
   {
     title: "History",
+    slug: "history",
     thumbnail: "/categories/history.jpg",
-    href: "/category/history",
   },
   {
     title: "Ai Novels",
+    slug: "ai-novels",
     thumbnail: "/categories/ai-novels.jpg",
-    href: "/category/ai-novels",
   },
   {
     title: "Music",
+    slug: "music",
     thumbnail: "/categories/music.jpg",
-    href: "/category/music",
   },
 ];
+
     
 
 // Sample shows

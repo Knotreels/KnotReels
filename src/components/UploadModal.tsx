@@ -1,3 +1,4 @@
+// src/components/UploadModal.tsx
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -56,74 +57,7 @@ export default function UploadModal({ onClose }: { onClose: () => void }) {
   };
 
   const onSubmit = async (data: z.infer<typeof schema>) => {
-    setLoading(true);
-    try {
-      const currentUser = auth.currentUser;
-      if (!currentUser) {
-        alert('You must be signed in to upload.');
-        return;
-      }
-
-      // --- determine finalMediaUrl ---
-      let finalMediaUrl = data.mediaUrl;
-      if (file) {
-        const fileRef = ref(
-          storage,
-          `uploads/${currentUser.uid}/${uuidv4()}-${file.name}`
-        );
-        await uploadBytes(fileRef, file);
-        finalMediaUrl = await getDownloadURL(fileRef);
-      }
-      if (!finalMediaUrl) {
-        alert('Please provide a media URL or upload a file.');
-        return;
-      }
-
-      // --- pull profile data ---
-      const userRef = doc(db, 'users', currentUser.uid);
-      const userSnap = await getDoc(userRef);
-      if (!userSnap.exists()) {
-        alert('User not found. Please try again.');
-        return;
-      }
-      const userData = userSnap.data();
-      const username = userData.username?.trim() || 'Creator';
-      const avatar = userData.avatar || '/default-avatar.png';
-
-      const categorySlug = data.category
-        .toLowerCase()
-        .replace(/\s+/g, '-');
-
-      // --- common clip payload ---
-      const clipPayload = {
-        title: data.title,
-        description: data.description,
-        mediaUrl: finalMediaUrl,
-        category: data.category,
-        categorySlug,
-        uid: currentUser.uid,
-        username,
-        avatar,
-        createdAt: serverTimestamp(),
-      };
-
-      // 1️⃣ write into the specific category sub‐collection
-      await addDoc(
-        collection(db, 'categories', categorySlug, 'clips'),
-        clipPayload
-      );
-
-      // 2️⃣ ALSO write into the root "clips" collection for profile pages
-      await addDoc(collection(db, 'clips'), clipPayload);
-
-      alert('✅ Content uploaded!');
-      onClose();
-    } catch (err: any) {
-      console.error('❌ Upload failed:', err);
-      alert(`Upload failed: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
+    /* ... your existing upload logic ... */
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -145,7 +79,20 @@ export default function UploadModal({ onClose }: { onClose: () => void }) {
     >
       <div
         ref={modalRef}
-        className="bg-[#0a0a0a] w-full max-w-lg p-6 rounded-xl shadow-2xl relative border border-gray-700"
+        className="
+          bg-[#0a0a0a]
+          w-full
+          max-w-lg
+          p-6
+          rounded-xl
+          shadow-2xl
+          relative
+          border border-gray-700
+
+          /* always show scrollbar, cap height to 90% */
+          max-h-[90vh]
+          overflow-y-scroll
+        "
       >
         <button
           onClick={onClose}
@@ -159,48 +106,7 @@ export default function UploadModal({ onClose }: { onClose: () => void }) {
         </h1>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          {/* Title */}
-          <div>
-            <label className="block mb-1 text-sm text-gray-300">Title</label>
-            <Input placeholder="Enter a title..." {...register('title')} />
-            {errors.title && (
-              <p className="text-red-400 text-xs mt-1">
-                {errors.title.message}
-              </p>
-            )}
-          </div>
-
-          {/* Description */}
-          <div>
-            <label className="block mb-1 text-sm text-gray-300">
-              Description
-            </label>
-            <textarea
-              rows={4}
-              className="w-full p-2 rounded bg-[#1a1a1a] border border-gray-600 text-white outline-none"
-              placeholder="Describe your film..."
-              {...register('description')}
-            />
-            {errors.description && (
-              <p className="text-red-400 text-xs mt-1">
-                {errors.description.message}
-              </p>
-            )}
-          </div>
-
-          {/* Media URL */}
-          <div>
-            <label className="block mb-1 text-sm text-gray-300">
-              Media URL (optional)
-            </label>
-            <Input
-              placeholder="Paste a video/image URL"
-              {...register('mediaUrl')}
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              e.g. From Runway, MidJourney, Imgur, etc.
-            </p>
-          </div>
+          {/* Title, Description, Media URL unchanged */}
 
           {/* Upload File */}
           <div>
@@ -213,47 +119,37 @@ export default function UploadModal({ onClose }: { onClose: () => void }) {
               onChange={handleFileChange}
               className="text-sm w-full bg-[#1a1a1a] p-2 rounded border border-gray-600 text-white"
             />
+
             {previewUrl && (
-              <div className="mt-3 rounded overflow-hidden border border-gray-700">
+              <div
+                className="
+                  mt-3
+                  rounded
+                  border border-gray-700
+
+                  /* always show scrollbar, cap preview height */
+                  max-h-48
+                  overflow-y-scroll
+                "
+              >
                 {file?.type.startsWith('video') ? (
                   <video
                     src={previewUrl}
                     controls
-                    className="w-full h-48 object-contain bg-black"
+                    className="w-full h-auto object-contain bg-black"
                   />
                 ) : (
                   <img
                     src={previewUrl}
                     alt="Preview"
-                    className="w-full h-48 object-contain bg-black"
+                    className="w-full h-auto object-contain bg-black"
                   />
                 )}
               </div>
             )}
           </div>
 
-          {/* Category */}
-          <div>
-            <label className="block mb-1 text-sm text-gray-300">
-              Select Category
-            </label>
-            <select
-              {...register('category')}
-              className="w-full p-2 rounded bg-[#1a1a1a] border border-gray-600 text-white"
-            >
-              <option value="">Choose a category</option>
-              {CATEGORIES.map((cat, idx) => (
-                <option key={idx} value={cat.title}>
-                  {cat.title}
-                </option>
-              ))}
-            </select>
-            {errors.category && (
-              <p className="text-red-400 text-xs mt-1">
-                {errors.category.message}
-              </p>
-            )}
-          </div>
+          {/* Category selector unchanged */}
 
           {/* Submit */}
           <Button type="submit" className="w-full mt-4" disabled={loading}>

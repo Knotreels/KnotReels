@@ -144,3 +144,24 @@ body::before {
   -ms-overflow-style: none; /* IE and Edge */
   scrollbar-width: none; /* Firefox */
 }
+
+/* make the scrollbar always visible & styled */
+.scrollbar {
+  scrollbar-width: auto;           /* Firefox */
+  scrollbar-color: #4b5563 #1f2937; /* thumb, track */
+}
+
+.scrollbar::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;                   /* horizontal scrollbar */
+}
+
+.scrollbar::-webkit-scrollbar-track {
+  background: #1f2937;
+}
+
+.scrollbar::-webkit-scrollbar-thumb {
+  background-color: #4b5563;
+  border-radius: 6px;
+  border: 3px solid #1f2937;
+}

@@ -156,6 +156,7 @@ export default function UploadModal({ onClose }: { onClose: () => void }) {
           /* always show scrollbar, cap modal height */
           max-h-[90vh]
           overflow-y-scroll
+          scrollbar
         "
       >
         <button
@@ -224,6 +225,7 @@ export default function UploadModal({ onClose }: { onClose: () => void }) {
               onChange={handleFileChange}
               className="text-sm w-full bg-[#1a1a1a] p-2 rounded border border-gray-600 text-white"
             />
+
             {previewUrl && (
               <div
                 className="
@@ -234,6 +236,7 @@ export default function UploadModal({ onClose }: { onClose: () => void }) {
                   /* always show scrollbar, cap preview height */
                   max-h-48
                   overflow-y-scroll
+                  scrollbar
                 "
               >
                 {file?.type.startsWith('video') ? (

@@ -57,7 +57,71 @@ export default function UploadModal({ onClose }: { onClose: () => void }) {
   };
 
   const onSubmit = async (data: z.infer<typeof schema>) => {
-    /* ... your existing upload logic ... */
+    setLoading(true);
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        alert('You must be signed in to upload.');
+        return;
+      }
+
+      // Determine final media URL (either user-pasted or uploaded file)
+      let finalMediaUrl = data.mediaUrl;
+      if (file) {
+        const fileRef = ref(
+          storage,
+          `uploads/${currentUser.uid}/${uuidv4()}-${file.name}`
+        );
+        await uploadBytes(fileRef, file);
+        finalMediaUrl = await getDownloadURL(fileRef);
+      }
+      if (!finalMediaUrl) {
+        alert('Please provide a media URL or upload a file.');
+        return;
+      }
+
+      // Fetch user profile data
+      const userRef = doc(db, 'users', currentUser.uid);
+      const userSnap = await getDoc(userRef);
+      if (!userSnap.exists()) {
+        alert('User not found. Please try again.');
+        return;
+      }
+      const userData = userSnap.data();
+      const username = userData.username?.trim() || 'Creator';
+      const avatar = userData.avatar || '/default-avatar.png';
+
+      // Prepare clip payload
+      const categorySlug = data.category.toLowerCase().replace(/\s+/g, '-');
+      const clipPayload = {
+        title: data.title,
+        description: data.description,
+        mediaUrl: finalMediaUrl,
+        category: data.category,
+        categorySlug,
+        uid: currentUser.uid,
+        username,
+        avatar,
+        createdAt: serverTimestamp(),
+      };
+
+      // Write to category sub-collection
+      await addDoc(
+        collection(db, 'categories', categorySlug, 'clips'),
+        clipPayload
+      );
+      // Also write to root clips collection
+      await addDoc(collection(db, 'clips'), clipPayload);
+
+      alert('✅ Content uploaded!');
+      onClose();
+      router.refresh?.();
+    } catch (err: any) {
+      console.error('Upload failed:', err);
+      alert(`Upload failed: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -89,7 +153,7 @@ export default function UploadModal({ onClose }: { onClose: () => void }) {
           relative
           border border-gray-700
 
-          /* always show scrollbar, cap height to 90% */
+          /* always show scrollbar, cap modal height */
           max-h-[90vh]
           overflow-y-scroll
         "
@@ -106,7 +170,48 @@ export default function UploadModal({ onClose }: { onClose: () => void }) {
         </h1>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          {/* Title, Description, Media URL unchanged */}
+          {/* Title */}
+          <div>
+            <label className="block mb-1 text-sm text-gray-300">Title</label>
+            <Input placeholder="Enter a title..." {...register('title')} />
+            {errors.title && (
+              <p className="text-red-400 text-xs mt-1">
+                {errors.title.message}
+              </p>
+            )}
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block mb-1 text-sm text-gray-300">
+              Description
+            </label>
+            <textarea
+              rows={4}
+              className="w-full p-2 rounded bg-[#1a1a1a] border border-gray-600 text-white outline-none"
+              placeholder="Describe your film..."
+              {...register('description')}
+            />
+            {errors.description && (
+              <p className="text-red-400 text-xs mt-1">
+                {errors.description.message}
+              </p>
+            )}
+          </div>
+
+          {/* Media URL */}
+          <div>
+            <label className="block mb-1 text-sm text-gray-300">
+              Media URL (optional)
+            </label>
+            <Input
+              placeholder="Paste a video/image URL"
+              {...register('mediaUrl')}
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              e.g. From Runway, MidJourney, Imgur, etc.
+            </p>
+          </div>
 
           {/* Upload File */}
           <div>
@@ -119,7 +224,6 @@ export default function UploadModal({ onClose }: { onClose: () => void }) {
               onChange={handleFileChange}
               className="text-sm w-full bg-[#1a1a1a] p-2 rounded border border-gray-600 text-white"
             />
-
             {previewUrl && (
               <div
                 className="
@@ -149,7 +253,28 @@ export default function UploadModal({ onClose }: { onClose: () => void }) {
             )}
           </div>
 
-          {/* Category selector unchanged */}
+          {/* Category */}
+          <div>
+            <label className="block mb-1 text-sm text-gray-300">
+              Select Category
+            </label>
+            <select
+              {...register('category')}
+              className="w-full p-2 rounded bg-[#1a1a1a] border border-gray-600 text-white"
+            >
+              <option value="">Choose a category</option>
+              {CATEGORIES.map((cat, idx) => (
+                <option key={idx} value={cat.title}>
+                  {cat.title}
+                </option>
+              ))}
+            </select>
+            {errors.category && (
+              <p className="text-red-400 text-xs mt-1">
+                {errors.category.message}
+              </p>
+            )}
+          </div>
 
           {/* Submit */}
           <Button type="submit" className="w-full mt-4" disabled={loading}>

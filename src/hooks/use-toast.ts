@@ -102,10 +102,19 @@ function dispatch(action: Action) {
 
 type Toast = Omit<ToasterToast, 'id'>
 
+// Throttle logging: only once every 5 seconds in development
+let lastToastLogTime = 0
+
 function toast(props: Toast) {
   const id = genId()
 
-  console.log('📣 TOAST TRIGGERED:', props.title)
+  if (
+    process.env.NODE_ENV === 'development' &&
+    Date.now() - lastToastLogTime > 5000
+  ) {
+    console.log('📣 TOAST TRIGGERED:', props.title)
+    lastToastLogTime = Date.now()
+  }
 
   const update = (props: ToasterToast) =>
     dispatch({ type: 'UPDATE_TOAST', toast: { ...props, id } })

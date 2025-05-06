@@ -46,6 +46,10 @@ export const PROFILE_IMAGES = [
 
 // Types
 export type Movie = {
+  views: number;
+  mediaUrl: boolean;
+  tips: number;
+  userId: any;
   id: number;
   title: string;
   overview: string;
@@ -167,23 +171,3 @@ export const CATEGORIES = [
 ];
 
     
-
-// Sample shows
-export const SAMPLE_MOVIES: Movie[] = [
-  {
-    id: 1,
-    title: "Stranger Things",
-    overview: "When a young boy vanishes...",
-    poster_path: "https://image.tmdb.org/t/p/w500/x2LSRK2Cm7MZhjluni1msVJ3wDF.jpg",
-    backdrop_path: "https://image.tmdb.org/t/p/original/56v2KjBlU4XaOv9rVYEQypROD7P.jpg",
-    release_date: "2016-07-15",
-    genre_ids: [18, 9648, 10765],
-    vote_average: 8.6
-  },
-  // ... other SAMPLE_MOVIES
-];
-
-export const TRENDING_NOW = SAMPLE_MOVIES;
-export const POPULAR_ON_NETFLIX = [...SAMPLE_MOVIES].reverse();
-export const TOP_PICKS = SAMPLE_MOVIES.slice(2, 6).concat(SAMPLE_MOVIES.slice(0, 2));
-export const AWARD_WINNING_TV = SAMPLE_MOVIES.slice(1, 5).concat(SAMPLE_MOVIES.slice(0, 1));

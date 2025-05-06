@@ -70,7 +70,7 @@ export default function BrowsePage() {
       {/* 📂 Categories */}
       <section className="relative z-10 w-full px-6 space-y-10 pb-14">
         <MovieRow
-          title=" Sponsored "
+          title=" Genres "
           cardSize="large"
           movies={CATEGORIES.map((category, index) => ({
             id: index,

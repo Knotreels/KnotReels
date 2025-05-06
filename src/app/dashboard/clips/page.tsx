@@ -1,12 +1,15 @@
-
 'use client';
-
+import MovieCard from '@/components/MovieCard';
 import { useState, useEffect } from 'react';
-import { collection, getDocs, query, where, orderBy, addDoc, Timestamp } from 'firebase/firestore';
+import {
+  collection,
+  getDocs,
+  query,
+  orderBy
+} from 'firebase/firestore';
 import { db } from '@/firebase/config';
 import UploadClipModal from '@/components/UploadClipModal';
 import { Button } from '@/components/ui/button';
-import Image from 'next/image';
 
 export default function DashboardClipsPage() {
   const [clips, setClips] = useState<any[]>([]);
@@ -55,30 +58,15 @@ export default function DashboardClipsPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {clips.map(clip => (
-            <div key={clip.id} className="bg-gray-900 rounded-lg overflow-hidden">
-              {clip.mediaUrl ? (
-                <video
-                  src={clip.mediaUrl}
-                  controls
-                  className="w-full h-48 object-cover"
-                />
-              ) : (
-                <div className="h-48 bg-gray-800 flex items-center justify-center text-gray-500">
-                  No video
-                </div>
-              )}
-              <div className="p-4">
-                <h2 className="text-lg font-semibold truncate">{clip.title}</h2>
-                <p className="text-sm text-gray-400">Creator: {clip.username}</p>
-                <p className="text-xs text-gray-500 mt-1">
-                  Views: {clip.views || 0} • Tips: ${(clip.tips || 0).toFixed(2)}
-                </p>
-              </div>
-            </div>
+            <MovieCard
+              key={clip.id}
+              movie={clip}
+              showStats={true}
+              className="bg-gray-900 rounded-lg overflow-hidden"
+            />
           ))}
         </div>
       )}
     </div>
   );
 }
-

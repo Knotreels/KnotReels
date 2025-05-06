@@ -1,18 +1,19 @@
-import { ReactNode } from "react";
-import Sidebar from "@/components/Sidebar";
-import { Toaster } from "@/components/ui/toaster";
-import { AuthProvider } from "@/context/AuthContext"; // ✅ Import AuthProvider
+// src/app/dashboard/layout.tsx
+import { ReactNode } from 'react';
+import Sidebar from '@/components/Sidebar';
+import { Toaster } from '@/components/ui/toaster';
+import { AuthProvider } from '@/context/AuthContext';
 
-export default function Layout({ children }: { children: ReactNode }) {
+export default function DashboardLayout({ children }: { children: ReactNode }) {
+  const sidebarWidth = 800; // ensure this matches your sidebar width exactly
+
   return (
-    <AuthProvider> {/* ✅ Wrap entire app in AuthProvider */}
-      <div className="min-h-screen bg-[#0e0e0e] text-white flex">
-        <div className="fixed z-30">
-          <Sidebar isOpen={true} />
-        </div>
+    <AuthProvider>
+      <div className="min-h-screen bg-[#0e0e0e] text-white flex overflow-hidden">
+        <Sidebar isOpen={true} />
 
-        <div className="ml-64 w-full">
-          <main className="overflow-y-auto">{children}</main>
+        <div className={`flex-1 ml-[${100}px] overflow-auto`}>
+          <main>{children}</main>
           <Toaster />
         </div>
       </div>

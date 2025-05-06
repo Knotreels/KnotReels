@@ -1,9 +1,11 @@
 'use client';
 
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { motion, Variants } from 'framer-motion';
 import MovieRow from '@/components/MovieRow';
+import CreditIcon from '../components/icons/CreditIcon'; // ← your credit SVG
 
 interface HeroBannerProps {
   boosted?: any[];
@@ -24,7 +26,11 @@ const letterVariants: Variants = {
   }),
 };
 
-const HeroBanner = ({ boosted = [] }: HeroBannerProps) => {
+export default function HeroBanner({ boosted = [] }: HeroBannerProps) {
+  // pull role from URL so link stays in sync
+  const searchParams = useSearchParams();
+  const roleParam = searchParams.get('role') || 'viewer';
+
   const pathname = usePathname();
   const isBrowsePage = pathname?.includes('/browse');
 
@@ -32,6 +38,17 @@ const HeroBanner = ({ boosted = [] }: HeroBannerProps) => {
 
   return (
     <section className="relative flex flex-col items-start justify-start min-h-screen bg-black text-white px-4 overflow-hidden">
+      {/* ── PURCHASE CREDITS BUTTON ──────────────────────────────────────────────── */}
+      <div className="absolute top-4 right-4 z-20 flex items-center space-x-2 text-sm">
+        <CreditIcon className="w-5 h-5 text-white" />
+        <Link
+          href={`/pricing?role=${roleParam}`}
+          className="font-medium text-white hover:text-gray-300 transition"
+        >
+          Purchase Credits
+        </Link>
+      </div>
+
       {/* 🔁 Looping highlight reel behind everything */}
       <video
         src="/highlight-reel.mp4"
@@ -49,7 +66,7 @@ const HeroBanner = ({ boosted = [] }: HeroBannerProps) => {
       />
 
       <div className="z-10 w-full max-w-7xl mx-auto pt-8 md:pt-12 px-4">
-        {/* 🏷️ Title */}
+        {/* 🏷️ Animated Title */}
         <motion.h1
           initial={{ y: 100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -57,10 +74,10 @@ const HeroBanner = ({ boosted = [] }: HeroBannerProps) => {
           className="text-5xl md:text-7xl font-extrabold mb-1 tracking-wide flex flex-wrap"
         >
           <span className="text-[#C0C0C0]">Knot</span>
-          {reelsText.map((char, index) => (
+          {reelsText.map((char, i) => (
             <motion.span
-              key={index}
-              custom={index}
+              key={i}
+              custom={i}
               variants={letterVariants}
               initial="hidden"
               animate="visible"
@@ -71,17 +88,7 @@ const HeroBanner = ({ boosted = [] }: HeroBannerProps) => {
           ))}
         </motion.h1>
 
-        {/* ✨ Subtitle */}
-        <motion.h2
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1.1 }}
-          className="text-2xl md:text-3xl font-semibold mb-6"
-        >
-          <span className="text-[#C0C0C0]">Entertainment</span>
-        </motion.h2>
-
-        {/* 🔘 Auth Buttons */}
+        {/* 🔘 Auth Buttons (only show when NOT on /browse) */}
         {!isBrowsePage && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -104,7 +111,7 @@ const HeroBanner = ({ boosted = [] }: HeroBannerProps) => {
           </motion.div>
         )}
 
-        {/*  Featured Creators */}
+        {/* ⭐ Featured Creators & Boost Info (only show when on /browse) */}
         {isBrowsePage && boosted.length > 0 && (
           <>
             <div className="mt-28 px-4 md:px-8">
@@ -113,13 +120,13 @@ const HeroBanner = ({ boosted = [] }: HeroBannerProps) => {
                 cardSize="large"
                 autoScroll
                 scrollSpeed={4000}
-                movies={boosted.map((creator) => ({
-                  id: creator.id,
-                  userId: creator.id,
-                  title: creator.title,
-                  overview: creator.description,
-                  poster_path: creator.thumbnail,
-                  backdrop_path: creator.thumbnail,
+                movies={boosted.map((c) => ({
+                  id: c.id,
+                  userId: c.id,
+                  title: c.title,
+                  overview: c.description,
+                  poster_path: c.thumbnail,
+                  backdrop_path: c.thumbnail,
                   release_date: '',
                   genre_ids: [],
                   vote_average: 0,
@@ -127,7 +134,6 @@ const HeroBanner = ({ boosted = [] }: HeroBannerProps) => {
               />
             </div>
 
-            {/* ⭐ Boost Info (right below carousel) */}
             <div className="mt-6">
               <div className="bg-[#141414] border border-blue-600 rounded-lg p-6 text-left max-w-3xl ml-16">
                 <h2 className="text-xl font-bold text-white mb-2">
@@ -136,7 +142,7 @@ const HeroBanner = ({ boosted = [] }: HeroBannerProps) => {
                 <p className="text-gray-400 text-sm">
                   Once your content receives{' '}
                   <span className="text-blue-400 font-semibold">20 Boosts</span>, your
-                  profile gets featured in the{' '}
+                  profile is featured in the{' '}
                   <span className="text-blue-500 font-semibold">Boosted Creators</span>{' '}
                   carousel for everyone to discover!
                 </p>
@@ -147,6 +153,4 @@ const HeroBanner = ({ boosted = [] }: HeroBannerProps) => {
       </div>
     </section>
   );
-};
-
-export default HeroBanner;
+}

@@ -1,414 +1,76 @@
 'use client';
 
-import {
-  useEffect,
-  useState,
-  useRef,
-  ChangeEvent,
-} from 'react';
-import {
-  auth,
-  db,
-  storage,
-} from '@/firebase/config';
-import {
-  doc,
-  onSnapshot,
-  collection,
-  query,
-  where,
-  getDocs,
-  orderBy,
-  updateDoc,
-  addDoc,
-  Timestamp,
-  increment,
-} from 'firebase/firestore';
-import {
-  ref,
-  uploadBytes,
-  getDownloadURL,
-} from 'firebase/storage';
-import { onAuthStateChanged } from 'firebase/auth';
-import Image from 'next/image';
-import Link from 'next/link';
-import LogoLoader from '@/components/LogoLoader';
-import { FaTimes } from 'react-icons/fa';
-import UploadModal from '@/components/UploadModal';
+import React, { useEffect, useState } from 'react';
+import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { db }                from '@/firebase/config';
+import { useAuth }           from '@/context/AuthContext';
+import LogoLoader            from '@/components/LogoLoader';
+import CommentModal          from '@/components/CommentModal';
+import { Button }            from '@/components/ui/button';
 
-export default function ProfilePage() {
-  const [user, setUser] = useState<any>(null);
-  const [clips, setClips] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [totalViews, setTotalViews] = useState(0);
+export default function MyClipsPage() {
+  const { user } = useAuth();
+  const [clips, setClips]               = useState<any[]>([]);
+  const [loading, setLoading]           = useState(true);
   const [activeClipId, setActiveClipId] = useState<string | null>(null);
-  const [newComment, setNewComment] = useState('');
-  const [comments, setComments] = useState<{ [key: string]: any[] }>({});
-  const prevBoostsRef = useRef<number | null>(null);
-  const [showUpload, setShowUpload] = useState(false);
-
-  // ** NEW: bio editing state **
-  const [bio, setBio] = useState<string>('');
-  const [editingBio, setEditingBio] = useState(false);
 
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
-      if (currentUser) {
-        const userRef = doc(db, 'users', currentUser.uid);
-
-        // subscribe to user doc (including bio)
-        const unsubscribeUser = onSnapshot(userRef, (docSnap) => {
-          const data = docSnap.data();
-          if (!data) return;
-          setUser({ uid: currentUser.uid, ...data });
-          setBio(data.bio || ''); // load bio
-
-          // notify on boosts
-          const currentBoosts = data.boosts || 0;
-          if (
-            prevBoostsRef.current !== null &&
-            currentBoosts > prevBoostsRef.current
-          ) {
-            alert('🚀 You’ve just been boosted by a fan!');
-          }
-          prevBoostsRef.current = currentBoosts;
-        });
-
-        // fetch clips
-        const clipsQuery = query(
-          collection(db, 'clips'),
-          where('uid', '==', currentUser.uid),
-          orderBy('createdAt', 'desc')
-        );
-        const clipsSnap = await getDocs(clipsQuery);
-        const clipData = clipsSnap.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as any),
-        }));
-
-        setClips(clipData);
-
-        // subscribe to comments for each clip
-        clipData.forEach((clip) => {
-          const q = query(
-            collection(db, 'comments'),
-            where('clipId', '==', clip.id),
-            orderBy('createdAt', 'desc')
-          );
-          onSnapshot(q, (snap) => {
-            setComments((prev) => ({
-              ...prev,
-              [clip.id]: snap.docs.map((d) => ({ id: d.id, ...d.data() })),
-            }));
-          });
-        });
-
-        // compute total views
-        const viewsSum = clipData.reduce(
-          (acc, clip) => acc + (clip.views || 0),
-          0
-        );
-        setTotalViews(viewsSum);
-
-        setLoading(false);
-        return () => unsubscribeUser();
-      } else {
-        setLoading(false);
-      }
-    });
-    return () => unsubscribeAuth();
-  }, []);
-
-  // save updated bio back to Firestore
-  const saveBio = async () => {
     if (!user) return;
-    try {
-      await updateDoc(doc(db, 'users', user.uid), { bio });
-      setEditingBio(false);
-    } catch (err) {
-      console.error('❌ Failed to save bio:', err);
-      alert('Failed to save bio.');
-    }
-  };
+    (async () => {
+      // pull from top-level "clips" by your uid
+      const q = query(
+        collection(db, 'clips'),
+        where('uid', '==', user.uid),
+        orderBy('createdAt', 'desc')
+      );
+      const snap = await getDocs(q);
+      setClips(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
+      setLoading(false);
+    })();
+  }, [user]);
 
-  const handleAvatarChange = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user) return alert('No file or user found.');
-    if (!file.type.startsWith('image/')) return alert('❌ Only image files allowed.');
-
-    try {
-      const avatarPath = `avatars/${user.uid}/profile.jpg`;
-      const avatarRef = ref(storage, avatarPath);
-      await uploadBytes(avatarRef, file);
-      const avatarUrl = await getDownloadURL(avatarRef);
-
-      await updateDoc(doc(db, 'users', user.uid), { avatar: avatarUrl });
-      setUser((prev: any) => ({ ...prev, avatar: avatarUrl }));
-      alert('✅ Avatar updated successfully!');
-    } catch (error) {
-      console.error('❌ Upload error:', error);
-      alert('❌ Upload failed. Check the console.');
-    }
-  };
-
-  const handleTip = async (clipOwnerUid: string) => {
-    if (!clipOwnerUid) return alert("❌ No creator UID provided.");
-    if (!user) return alert("🔒 You must be logged in to tip.");
-    if (clipOwnerUid === user.uid) return alert("🚫 You can't tip yourself!");
-
-    try {
-      const creatorRef = doc(db, 'users', clipOwnerUid);
-      await updateDoc(creatorRef, {
-        tips: (user.tips || 0) + 1,
-      });
-      alert('💸 Tip sent successfully!');
-    } catch (err) {
-      console.error('❌ Tip failed:', err);
-      alert('Something went wrong. Check console.');
-    }
-  };
-
-  const handleSubmitComment = async (clipId: string) => {
-    if (!newComment.trim() || !user) return;
-
-    await addDoc(collection(db, 'comments'), {
-      clipId,
-      text: newComment.trim(),
-      user: user.username || 'Creator',
-      avatar: user.avatar || '/default-avatar.png',
-      createdAt: Timestamp.now(),
-    });
-    setNewComment('');
-  };
-
-  const handleView = async (clipId: string) => {
-    try {
-      const clipRef = doc(db, 'clips', clipId);
-      await updateDoc(clipRef, {
-        views: increment(1),
-      });
-    } catch (error) {
-      console.error('Error updating view count:', error);
-    }
-  };
-
-  if (loading) return <LogoLoader />;
-  if (!user) return <div className="p-6 text-white">User not found.</div>;
+  if (!user || loading) return <LogoLoader />;
 
   return (
-    <div className="space-y-10 px-6 pt-10 text-white">
-      {/* Header */}
-      <div className="flex items-start gap-6">
-        <div className="relative group w-16 h-16">
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleAvatarChange}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-          />
-          <Image
-            src={user.avatar || '/default-avatar.png'}
-            alt="Avatar"
-            fill
-            className="rounded-full object-cover border border-gray-700 group-hover:opacity-70"
-          />
-          <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-xs bg-blue-500 text-black px-2 py-0.5 rounded shadow-md opacity-90 group-hover:scale-105 transition z-20">
-            edit
-          </span>
-        </div>
-        <div className="flex-1">
-          <h2 className="text-2xl font-semibold">{user.username || 'Creator'}</h2>
-
-          {/* Bio display / editor */}
-          {editingBio ? (
-            <div className="mt-3 space-y-2">
-              <textarea
-                value={bio}
-                onChange={(e) => setBio(e.target.value)}
-                rows={3}
-                className="w-full p-2 bg-zinc-800 border border-zinc-600 rounded resize-none"
-              />
-              <div className="flex gap-2">
-                <button
-                  onClick={saveBio}
-                  className="px-3 py-1 bg-green-600 rounded hover:bg-green-700"
-                >
-                  Save Bio
-                </button>
-                <button
-                  onClick={() => {
-                    setBio(user.bio || '');
-                    setEditingBio(false);
-                  }}
-                  className="px-3 py-1 bg-gray-600 rounded hover:bg-gray-700"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="mt-3 flex items-center gap-2">
-              <p className="text-gray-300">{bio || 'No bio yet.'}</p>
-              <button
-                onClick={() => setEditingBio(true)}
-                className="text-blue-400 hover:underline text-sm"
-              >
-                Edit
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
-        <Stat label="Boosts" value={user.boosts || 0} />
-        <Stat label="Tips" value={`$${user.tips?.toFixed(2) || '0.00'}`} />
-        <Stat label="Views" value={totalViews} />
-      </div>
-
-      {/* Upload */}
-      <Link href="#">
-        <button
-          onClick={() => setShowUpload(true)}
-          className="bg-blue-600 hover:bg-blue-700 px-6 py-3 text-white rounded-md font-medium transition"
-        >
-          + Upload New Reel
-        </button>
-      </Link>
-      {showUpload && <UploadModal onClose={() => setShowUpload(false)} />}
-
-      {/* Clips Grid */}
-      <div>
-        <h3 className="text-xl font-semibold mb-4">Your Latest Uploads</h3>
+    <div className="p-6 text-white space-y-8">
+      <h1 className="text-2xl font-bold">Your Clips</h1>
+      {clips.length === 0 ? (
+        <p className="text-gray-400">You haven’t uploaded any reels yet.</p>
+      ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {clips.length > 0 ? (
-            clips.map((clip) => (
-              <div
-                key={clip.id}
-                className="bg-[#1a1a1a] rounded-md overflow-hidden border border-gray-700 relative"
-              >
-                {clip.mediaUrl ? (
-                  <div className="w-full bg-black flex items-center justify-center overflow-hidden">
-                    <video
-                      src={clip.mediaUrl}
-                      className="w-full object-cover"
-                      controls
-                      onPlay={() => {
-                        if (clip.uid !== user.uid) handleView(clip.id);
-                      }}
-                    />
-                  </div>
-                ) : (
-                  <div className="h-40 bg-gray-800 flex items-center justify-center text-sm text-gray-400">
-                    No video uploaded
-                  </div>
-                )}
-
-                <div className="relative p-3 bg-gradient-to-t from-black/80 to-transparent text-white">
-                  <h4 className="text-sm font-semibold truncate">
-                    {clip.title || 'Untitled'}
-                  </h4>
-                  <p className="text-xs text-gray-300">
-                    Creator: {clip.username || 'Unknown'}<br />
-                    Views: {clip.views || 0} • Tips: $
-                    {clip.tips?.toFixed(2) || '0.00'}
-                  </p>
-
-                  <div className="flex gap-2 mt-2">
-                    {clip.uid !== user.uid && (
-                      <button
-                        onClick={() => handleTip(clip.uid || user.uid)}
-                        className="bg-green-600 hover:bg-green-700 text-white text-xs px-4 py-1 rounded transition"
-                      >
-                        💸 Tip Creator
-                      </button>
-                    )}
-                    <button
-                      onClick={() => setActiveClipId(clip.id)}
-                      className="text-xs bg-white/10 px-3 py-1 rounded hover:bg-white/20 transition"
-                    >
-                      Comments
-                    </button>
-                  </div>
+          {clips.map(clip => (
+            <div key={clip.id} className="bg-[#1a1a1a] rounded overflow-hidden">
+              {clip.mediaUrl ? (
+                <video
+                  src={clip.mediaUrl}
+                  controls
+                  className="w-full h-48 object-cover"
+                />
+              ) : (
+                <div className="h-48 bg-gray-800 flex items-center justify-center">
+                  No video
                 </div>
-
-                {/* Comment Modal */}
-                {activeClipId === clip.id && (
-                  <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center">
-                    <div className="bg-[#121212] text-white rounded-lg w-full max-w-md p-6 relative shadow-xl">
-                      <button
-                        onClick={() => setActiveClipId(null)}
-                        className="absolute top-4 right-4 text-gray-400 hover:text-white transition"
-                      >
-                        <FaTimes />
-                      </button>
-
-                      <h2 className="text-xl font-semibold mb-4">Comments</h2>
-                      <div className="space-y-3 max-h-64 overflow-y-auto mb-4 border border-zinc-800 p-2 rounded bg-zinc-900/60">
-                        {comments[clip.id]?.length > 0 ? (
-                          comments[clip.id].map((c, i) => (
-                            <div
-                              key={i}
-                              className="flex items-start gap-3 text-sm text-gray-300"
-                            >
-                              <Image
-                                src={c.avatar || '/default-avatar.png'}
-                                alt="user"
-                                width={24}
-                                height={24}
-                                className="rounded-full object-cover"
-                              />
-                              <div className="bg-zinc-800 px-3 py-2 rounded-lg w-full">
-                                <p className="text-xs text-white font-semibold">
-                                  {c.user || ''}
-                                </p>
-                                <p className="text-sm text-gray-300">
-                                  {c.text}
-                                </p>
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          <p className="text-sm text-gray-500">
-                            No comments yet.
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          placeholder="Write a comment..."
-                          value={newComment}
-                          onChange={(e) => setNewComment(e.target.value)}
-                          className="flex-1 p-2 rounded bg-zinc-800 text-white outline-none border border-zinc-600"
-                        />
-                        <button
-                          onClick={() => handleSubmitComment(clip.id)}
-                          className="bg-blue-600 px-4 py-2 rounded hover:bg-blue-700 text-sm font-medium"
-                        >
-                          Send
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
+              )}
+              <div className="p-4">
+                <h2 className="font-semibold text-lg truncate">{clip.title}</h2>
+                <Button
+                  className="mt-2 bg-blue-600"
+                  onClick={() => setActiveClipId(prev => (prev === clip.id ? null : clip.id))}
+                >
+                  Comments ({/* optional count here */})
+                </Button>
               </div>
-            ))
-          ) : (
-            <p className="text-gray-400">No clips uploaded yet.</p>
-          )}
+              {activeClipId === clip.id && (
+                <CommentModal
+                  clipId={clip.id}
+                  isOpen={true}
+                  onClose={() => setActiveClipId(null)}
+                />
+              )}
+            </div>
+          ))}
         </div>
-      </div>
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="bg-[#1e1e1e] p-4 rounded-lg text-center">
-      <p className="text-lg font-bold">{value}</p>
-      <p className="text-sm text-gray-400">{label}</p>
+      )}
     </div>
   );
 }
